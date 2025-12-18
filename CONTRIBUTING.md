@@ -1,63 +1,62 @@
 # Contributing to CloudSlash
 
-## Welcome, Cloud Detective. 🕵️‍♂️
+This guide outlines the development standards and contribution workflow for CloudSlash.
 
-Thank you for your interest in contributing to **CloudSlash**. We believe in "Zero Trust" infrastructure and "Zero Waste" cloud computing. If you share this obsession for precision and efficiency, you are in the right place.
+## Open Core Model
 
-## The "Open Core" Philosophy
+CloudSlash is Open Source software licensed under the **GNU Affero General Public License v3.0 (AGPLv3)**.
 
-CloudSlash is **Open Source (AGPLv3)**. We believe the core engine that detects waste should be transparent, auditable, and accessible to everyone.
+- **Core Engine**: The scanning logic, heuristics, and TUI are open source. You are encouraged to audit, improve, and extend them.
+- **Enterprise Features**: Automated reporting and remediation generation are reserved for licensed users.
 
-However, we also sustainable development. Some advanced features (Automated Reporting, Terraform Generation) are reserved for **Pro Licensed Users**.
+### License Enforcement
 
-- **You MAY** contribute to the core engine, scanners, and heuristics.
-- **You MAY** use the code for your own internal audits.
-- **You MAY NOT** strip the license checks and resell this as your own SaaS product (that violates the AGPL).
+You may not modify the source code to bypass or remove license checks for the purpose of redistributing the software as a commercial product or SaaS service. This is a violation of the AGPLv3.
 
-## How to Contribute
+## Workflow
 
-### 1. Reporting Bugs
+### Reporting Issues
 
-- Usage the GitHub Issues tab.
-- Please provide your OS, CloudSlash version (`cloudslash --help`), and a redacted output of the error.
+1. Search existing issues to avoid duplicates.
+2. Include the output of `cloudslash --version` (or the commit hash).
+3. Provide a minimal reproduction or a sanitized log output.
 
-### 2. Suggesting Heuristics
+### Pull Requests
 
-- found a new way to waste money on AWS? Open an Issue titled `[Heuristic Idea]: <Name>`.
-- Describe the logic: "If resource X has metric Y < threshold Z for T time..."
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feat/my-feature`).
+3. Ensure your code compiles: `go build ./cmd/cloudslash`.
+4. Format your code: `go fmt ./...`.
+5. Submit a Pull Request.
 
-### 3. Pull Requests
+## Development
 
-- Fork the repo.
-- Create a branch: `git checkout -b fix/your-fix` or `feat/your-feature`.
-- **Run Tests**: Ensure the project compiles with `go build ./cmd/cloudslash`.
-- **Format Code**: Run `go fmt ./...`.
-- Push and open a PR.
+**Prerequisites**: Go 1.25+
 
-## Development Setup
+1. **Clone**:
 
-1.  **Install Go 1.25+**
-2.  **Clone the Repo**:
-    ```bash
-    git clone https://github.com/DrSkyle/CloudSlash.git
-    cd CloudSlash
-    ```
-3.  **Run Locally**:
-    ```bash
-    go run ./cmd/cloudslash
-    ```
-4.  **Mock Mode**:
-    Use the `--mock` flag to test the UI without AWS credentials (note: flag is hidden in help).
-    ```bash
-    go run ./cmd/cloudslash --mock
-    ```
+   ```bash
+   git clone https://github.com/DrSkyle/CloudSlash.git
+   cd CloudSlash
+   ```
 
-## Style Guide
+2. **Run**:
 
-- **Zero Errors**: We do not ignore errors. Wrap them, log them, or handle them.
-- **Zero Hallucinations**: Do not assume an API call works. Verify identity. Verify regions.
-- **Future-Glass UI**: If touching the TUI, strictly adhere to the neon/glassmorphism aesthetic defined in `internal/ui`.
+   ```bash
+   go run ./cmd/cloudslash
+   ```
 
----
+3. **Mock Mode** (Run without AWS credentials):
+   ```bash
+   go run ./cmd/cloudslash --mock
+   ```
 
-_By contributing to this repository, you agree that your contributions will be licensed under the AGPLv3._
+## Coding Standards
+
+- **Error Handling**: Never ignore errors. Wrap them with context or handle them explicitly.
+- **AWS API**: Always verify identity and region before making calls. Assume credentials may be missing or expired.
+- **UI**: Maintain the existing TUI aesthetic defined in `internal/ui`. Do not introduce new libraries without prior discussion.
+
+## Legal
+
+By contributing to this repository, you agree that your contributions will be licensed under the AGPLv3.
