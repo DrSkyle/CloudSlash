@@ -472,3 +472,25 @@ nav a:hover {
     font-size: 2.5rem;
   }
 }
+
+/* SVG Icon Styles */
+.icon svg {
+    stroke: #00FF99;
+    filter: drop-shadow(0 0 5px rgba(0, 255, 153, 0.5));
+    transition: filter 0.3s ease;
+}
+
+.card:hover .icon svg {
+    filter: drop-shadow(0 0 12px rgba(0, 255, 153, 0.8));
+}
+
+.copy-icon svg {
+    stroke: #888;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.code-block:hover .copy-icon svg {
+    stroke: #00FF99;
+    filter: drop-shadow(0 0 5px rgba(0, 255, 153, 0.5));
+}
