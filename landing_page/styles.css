@@ -263,13 +263,13 @@ nav a:hover {
   max-width: 500px;
 }
 
-/* Make the Hero CTA Button Wider & Punchier */
+/* Make the Hero CTA Button Sleeker */
 .hero-text .btn-primary {
-    padding: 16px 48px;
-    font-size: 1.1rem;
-    min-width: 240px;
+    padding: 12px 32px;
+    font-size: 1.05rem;
+    min-width: 180px;
     justify-content: center;
-    box-shadow: 0 0 30px rgba(0, 255, 153, 0.2);
+    box-shadow: 0 0 20px rgba(0, 255, 153, 0.15);
 }
 
 .hero-visual {
