@@ -240,6 +240,7 @@ nav a:hover {
   display: block;
   text-align: center;
   margin-top: 16px;
+  cursor: pointer;
 }
 
 /* Hero Section */
@@ -354,15 +355,10 @@ nav a:hover {
 
 .pricing-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
-  justify-content: center;
-}
-
-@media (min-width: 1400px) {
-    .pricing-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .price-card {
@@ -377,11 +373,6 @@ nav a:hover {
   background: rgba(0, 255, 153, 0.05);
 }
 
-.price-card.featured-blue {
-    border-color: #00CCFF;
-    box-shadow: 0 0 30px rgba(0, 204, 255, 0.1);
-}
-
 .badge {
   position: absolute;
   top: -12px;
@@ -392,19 +383,6 @@ nav a:hover {
   font-weight: 700;
   padding: 4px 12px;
   border-radius: 12px;
-}
-
-.badge-blue {
-    position: absolute;
-    top: -12px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #00CCFF;
-    color: #0c0c0c;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 800;
 }
 
 .price {
