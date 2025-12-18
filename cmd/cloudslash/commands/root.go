@@ -23,6 +23,7 @@ var rootCmd = &cobra.Command{
 	Long: `CloudSlash - Zero Trust Infrastructure Analysis
     
 Identify. Audit. Slash.`,
+    Version: CurrentVersion,
 	Run: func(cmd *cobra.Command, args []string) {
         // Default action: Run TUI
         config.Headless = false
