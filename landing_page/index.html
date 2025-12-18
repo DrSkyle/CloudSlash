@@ -77,36 +77,50 @@
             <div class="container">
                 <h2 class="section-title">Why CloudSlash?</h2>
                 <div class="grid">
+                <div class="grid">
                     <div class="card glass-panel">
-                        <div class="icon">🧟</div>
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2-9-2 9-6-12-6 12"/></svg>
+                        </div>
                         <h3>Deep-Scan Heuristics</h3>
                         <p>We don't just list resources. We trace their lineage. Found: <strong>Zombie EBS</strong> volumes attached to stopped instances for >30 days.</p>
                     </div>
                     <div class="card glass-panel">
-                        <div class="icon">🧛</div>
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                        </div>
                         <h3>Vampire NATs</h3>
                         <p>NAT Gateways charging you hourly while handling < 1GB/month. CloudSlash identifies them instantly via CloudWatch heuristics.</p>
                     </div>
                     <div class="card glass-panel">
-                        <div class="icon">👻</div>
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19c0-1.7-1.3-3-3-3h-11"/><path d="M11.5 19c0-1.7 1.3-3 3-3h5.3c1.8 0 3.2-1.3 3.2-3s-1.4-3-3.2-3c-.6 0-1.1.2-1.6.5C17.7 7.6 15.1 5 12 5c-3.1 0-5.7 2.6-6.2 5.5-.5-.3-1-.5-1.6-.5-1.8 0-3.2 1.3-3.2 3s1.4 3 3.2 3H11.5z"/></svg>
+                        </div>
                         <h3>S3 Ghosts</h3>
                         <p>Incomplete Multipart Uploads usually invisible in the console. We surface the invisible Terabytes.</p>
                     </div>
                     <div class="card glass-panel">
-                        <div class="icon">🦕</div>
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        </div>
                         <h3>Fossil Snapshots</h3>
                         <p>Manual RDS snapshots older than 90 days that are no longer linked to any active database cluster.</p>
                     </div>
                     <div class="card glass-panel">
-                        <div class="icon">🕸️</div>
+                        <div class="icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><circle cx="12" cy="19" r="3"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+                        </div>
                         <h3>Orphaned ELBs</h3>
                         <p>Load Balancers with no registered targets or zero request count for >14 days. Pure waste.</p>
                     </div>
                     <div class="card glass-panel">
-                        <div class="icon">🎈</div>
+                        <div class="icon">
+                           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        </div>
                         <h3>Loose EIPs</h3>
                         <p>Elastic IPs allocated but not associated with any running instance. Identifying these clears instant monthly drift.</p>
                     </div>
+                </div>
                 </div>
             </div>
         </section>
@@ -155,7 +169,9 @@
                     <div class="code-block" onclick="copyInstall()">
                         <span class="prompt">$</span>
                         <code id="install-cmd">curl -sL https://raw.githubusercontent.com/DrSkyle/CloudSlash/main/dist/install.sh | bash</code>
-                        <span class="copy-icon">📋</span>
+                        <span class="copy-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        </span>
                     </div>
                 </div>
                 
