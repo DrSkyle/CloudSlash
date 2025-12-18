@@ -2,6 +2,8 @@ package graph
 
 import (
 	"fmt"
+	"strings"
+	"time"
 	"sync"
 )
 
@@ -172,6 +174,23 @@ func (g *Graph) MarkWaste(id string, score int) {
 	defer g.Mu.Unlock()
 
 	if node, ok := g.Nodes[id]; ok {
+		// Safe List Logic (cloudslash:ignore)
+		if tags, ok := node.Properties["Tags"].(map[string]string); ok {
+			if val, ok := tags["cloudslash:ignore"]; ok {
+				val = strings.ToLower(strings.TrimSpace(val))
+				// 1. Ignore Forever
+				if val == "true" {
+					return
+				}
+				// 2. Ignore Until Date (YYYY-MM-DD)
+				if ignoreUntil, err := time.Parse("2006-01-02", val); err == nil {
+					if time.Now().Before(ignoreUntil) {
+						return
+					}
+				}
+			}
+		}
+
 		node.IsWaste = true
 		node.RiskScore = score
 	}

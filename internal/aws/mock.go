@@ -51,6 +51,15 @@ func (s *MockScanner) Scan(ctx context.Context) error {
 	s.Graph.AddNode("arn:aws:s3:::mock-bucket/upload-1", "AWS::S3::MultipartUpload", map[string]interface{}{
 		"Initiated": time.Now().Add(-10 * 24 * time.Hour), // 10 days old
 	})
+
+    // 6. Ignored Resource (Should NOT appear in TUI)
+    s.Graph.AddNode("arn:aws:ec2:us-east-1:123456789012:volume/vol-0mockIGNORED", "AWS::EC2::Volume", map[string]interface{}{
+        "State": "available",
+        "Tags": map[string]string{
+            "cloudslash:ignore": "true",
+        },
+    })
+    s.Graph.MarkWaste("arn:aws:ec2:us-east-1:123456789012:volume/vol-0mockIGNORED", 100)
 	// Heuristic runs later and marks waste, but we need to ensure it has cost if we want charts now?
 	// The heuristics run in mock mode too (see main.go).
 	// However, heuristics calculate cost using Pricing Client which mocks don't hold.

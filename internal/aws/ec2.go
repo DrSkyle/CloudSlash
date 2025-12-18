@@ -7,6 +7,7 @@ import (
 	"github.com/DrSkyle/cloudslash/internal/graph"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
 type EC2Client interface {
@@ -47,6 +48,7 @@ func (s *EC2Scanner) ScanInstances(ctx context.Context) error {
 					"State":      string(instance.State.Name),
 					"Type":       string(instance.InstanceType),
 					"LaunchTime": instance.LaunchTime,
+					"Tags":       parseTags(instance.Tags),
 				}
 
 				s.Graph.AddNode(arn, "AWS::EC2::Instance", props)
@@ -90,6 +92,7 @@ func (s *EC2Scanner) ScanVolumes(ctx context.Context) error {
 				"State":      string(volume.State),
 				"Size":       *volume.Size,
 				"CreateTime": volume.CreateTime,
+				"Tags":       parseTags(volume.Tags),
 			}
 
 			s.Graph.AddNode(arn, "AWS::EC2::Volume", props)
@@ -121,9 +124,10 @@ func (s *EC2Scanner) ScanNatGateways(ctx context.Context) error {
 		for _, ngw := range page.NatGateways {
 			id := *ngw.NatGatewayId
 			arn := fmt.Sprintf("arn:aws:ec2:region:account:natgateway/%s", id)
-
+			
 			props := map[string]interface{}{
 				"State": string(ngw.State),
+				"Tags":  parseTags(ngw.Tags),
 			}
 
 			s.Graph.AddNode(arn, "AWS::EC2::NatGateway", props)
@@ -141,9 +145,10 @@ func (s *EC2Scanner) ScanAddresses(ctx context.Context) error {
 	for _, addr := range result.Addresses {
 		id := *addr.AllocationId
 		arn := fmt.Sprintf("arn:aws:ec2:region:account:eip/%s", id)
-
+		
 		props := map[string]interface{}{
 			"PublicIp": *addr.PublicIp,
+			"Tags":     parseTags(addr.Tags),
 		}
 
 		if addr.InstanceId != nil {
@@ -180,6 +185,7 @@ func (s *EC2Scanner) ScanSnapshots(ctx context.Context, ownerID string) error {
 				"VolumeSize":  *snap.VolumeSize,
 				"Description": *snap.Description,
 				"VolumeId":    *snap.VolumeId, // Original volume
+				"Tags":        parseTags(snap.Tags),
 			}
 			s.Graph.AddNode(arn, "AWS::EC2::Snapshot", props)
 		}
@@ -203,6 +209,7 @@ func (s *EC2Scanner) ScanImages(ctx context.Context) error {
 		props := map[string]interface{}{
 			"State": string(img.State),
 			"Name":  *img.Name,
+			"Tags":  parseTags(img.Tags),
 		}
 		s.Graph.AddNode(arn, "AWS::EC2::AMI", props)
 
@@ -216,4 +223,14 @@ func (s *EC2Scanner) ScanImages(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func parseTags(tags []types.Tag) map[string]string {
+	out := make(map[string]string)
+	for _, t := range tags {
+		if t.Key != nil && t.Value != nil {
+			out[*t.Key] = *t.Value
+		}
+	}
+	return out
 }
