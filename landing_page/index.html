@@ -158,14 +158,13 @@
                         </div>
                     </div>
                     
-                    <div class="price-card glass-panel">
+                        <div class="price-card glass-panel">
                         <h3>Site License</h3>
                         <div class="price">$1,499</div>
                          <ul class="features-list">
                             <li>✅ Lifetime Access</li>
                             <li>✅ Unlimited Seats</li>
                             <li>✅ Source Modification</li>
-                            <li>✅ Dedicated Support</li>
                         </ul>
                         <a href="https://checkout.freemius.com/app/22411/plan/37513/?billing_cycle=lifetime" target="_blank" class="btn-secondary-full">Buy Lifetime</a>
                     </div>
@@ -243,6 +242,13 @@
 
     <script src="https://checkout.freemius.com/checkout.min.js"></script>
     <script>
+        // Make PLANS global immediately to avoid ReferenceError in onclick
+        window.PLANS = {
+            MONTHLY: 37513, // $49/mo
+            ANNUAL:  37513, // $499/yr
+            LIFETIME: 37513 // $1499
+        };
+
         // Initialize Freemius Checkout
         var fsHandler = FS.Checkout.configure({
             plugin_id: '22411',
@@ -255,7 +261,8 @@
             // If ID is unknown, the checkout will default to the first paid plan.
             let config = {
                 plan_id: planId,
-                licenses: 1
+                licenses: 1,
+                // Ensure we use the correct plan if relevant
             };
             
             // If we have a specific billing cycle/pricing ID (optional)
@@ -263,13 +270,6 @@
 
             fsHandler.open(config);
         }
-
-        // Simulating IDs - Replace these with real ones from Dashboard!
-        const PLANS = {
-            MONTHLY: 37513, // $49/mo
-            ANNUAL:  37513, // $499/yr
-            LIFETIME: 37513 // $1499
-        };
 
         // Wire up buttons - OLD SELECTORS MIGHT BREAK WITH NEW BUTTON TAGS
         // Adding explicit ID wiring or keeping inline onclicks which I added above.
