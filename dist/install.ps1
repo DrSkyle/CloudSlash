@@ -18,11 +18,29 @@ if (-not (Test-Path -Path $DestDir)) {
     New-Item -ItemType Directory -Path $DestDir | Out-Null
 }
 
+# Handle updates for running binaries (Rename Trick)
+if (Test-Path -Path $DestFile) {
+    $OldFile = "$DestFile.old"
+    if (Test-Path -Path $OldFile) {
+        Remove-Item -Path $OldFile -Force -ErrorAction SilentlyContinue
+    }
+    try {
+        Rename-Item -Path $DestFile -NewName $OldFile -Force -ErrorAction Stop
+    } catch {
+        Write-Warning "⚠️  Could not rename existing binary (it might be locked). Attempting overwrite..."
+    }
+}
+
 try {
+    Write-Host "⬇️  Downloading v1.0.2..."
     Invoke-WebRequest -Uri $TargetUrl -OutFile $DestFile -ErrorAction Stop
 }
 catch {
     Write-Error "❌ Download failed! Could not fetch $TargetUrl"
+    # Try to restore backup if download failed
+    if (Test-Path -Path "$DestFile.old") {
+        Rename-Item -Path "$DestFile.old" -NewName $DestFile -Force
+    }
     exit 1
 }
 
