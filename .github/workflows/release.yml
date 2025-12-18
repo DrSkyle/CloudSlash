@@ -29,6 +29,9 @@ jobs:
           - goos: windows
             goarch: amd64
             output_name: cloudslash-windows-amd64.exe
+          - goos: windows
+            goarch: arm64
+            output_name: cloudslash-windows-arm64.exe
 
     steps:
       - uses: actions/checkout@v4

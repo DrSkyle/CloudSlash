@@ -7,7 +7,16 @@ $RepoUser = "DrSkyle"
 $RepoName = "CloudSlash"
 $BaseUrl = "https://github.com/$RepoUser/$RepoName/releases/latest/download"
 
-$BinaryName = "cloudslash-windows-amd64.exe"
+# 1. Detect Architecture
+$Arch = $env:PROCESSOR_ARCHITECTURE.ToLower()
+if ($Arch -eq "arm64") {
+    $BinaryName = "cloudslash-windows-arm64.exe"
+} else {
+    # Default to amd64 (x64) for both x64 and x86 (via emulation if needed, though Golang sets x86 usually)
+    # Actually, better to stick to amd64 standard.
+    $BinaryName = "cloudslash-windows-amd64.exe"
+}
+
 $TargetUrl = "$BaseUrl/$BinaryName"
 $DestDir = $env:LOCALAPPDATA + "\CloudSlash"
 $DestFile = "$DestDir\cloudslash.exe"
