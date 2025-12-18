@@ -166,13 +166,16 @@
                 </div>
 
                 <!-- Support / Donation Section -->
-                <div class="glass-panel centered-panel" style="margin-top: 4rem; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <div class="glass-panel centered-panel" id="support" style="margin-top: 4rem; max-width: 600px; margin-left: auto; margin-right: auto;">
                     <h2>Support Open Source 💚</h2>
-                    <p style="margin-bottom: 20px;">I build this as a solo independent developer. If CloudSlash saved you money, please consider supporting the project.</p>
-                    <a href="https://buymeacoffee.com" target="_blank" class="bmc-button">
-                        <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 50px !important;" >
-                    </a>
-                    <p class="small-text" style="opacity: 0.6; margin-top: 10px; font-size: 0.8rem;">(Accepts PayPal & Cards via Payoneer)</p>
+                    <p style="margin-bottom: 20px;">I build this as a solo developer. Since I live in Nepal, Freemius is the only platform that supports me.</p>
+                    <p>If this tool saved you money, please consider buying a Supporter License.</p>
+                    
+                    <div style="margin-top: 20px;">
+                        <button onclick="buyPlan(PLANS.SUPPORT)" class="btn-primary-sm" style="width: 200px; font-size: 1.1rem;">❤️ Become a Supporter</button>
+                    </div>
+                    
+                    <p class="small-text" style="opacity: 0.6; margin-top: 20px; font-size: 0.8rem;">(Secure Transaction via Freemius)</p>
                 </div>
             </div>
         </section>
@@ -273,7 +276,8 @@
         const PLANS = {
             MONTHLY: 37513, // Verified
             ANNUAL:  37513, // Placeholder (using confirmed ID)
-            LIFETIME: 37513 // Placeholder (using confirmed ID)
+            LIFETIME: 37513, // Placeholder (using confirmed ID)
+            SUPPORT: 37513   // User to Configure: "Pay what you want" Plan
         };
 
         // Wire up buttons
