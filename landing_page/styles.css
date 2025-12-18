@@ -380,9 +380,10 @@ nav a:hover {
     border: 1px solid var(--glass-border);
     border-radius: 12px;
     padding: 1rem;
-    display: inline-block;
+    display: block;
+    max-width: 100%;
+    margin: 0 auto 2rem auto;
     backdrop-filter: blur(10px);
-    margin-bottom: 2rem;
 }
 
 .os-tabs {

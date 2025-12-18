@@ -201,8 +201,15 @@
                         const text = document.getElementById('install-cmd').innerText;
                         navigator.clipboard.writeText(text);
                         const icon = document.querySelector('.copy-icon');
-                        icon.innerText = '✅';
-                        setTimeout(() => icon.innerText = '📋', 2000);
+                        // Store original SVG
+                        if (!icon.dataset.original) icon.dataset.original = icon.innerHTML;
+                        
+                        // Swap to Check Icon SVG
+                        icon.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00FF99" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+                        
+                        setTimeout(() => {
+                            icon.innerHTML = icon.dataset.original;
+                        }, 2000);
                     }
                 </script>
 
