@@ -1,8 +1,27 @@
 package graph
 
 import (
+	"fmt"
 	"sync"
 )
+
+// EdgeType defines the semantic relationship between resources.
+type EdgeType string
+
+const (
+	EdgeTypeAttachedTo EdgeType = "AttachedTo" // e.g., EBS -> EC2
+	EdgeTypeSecuredBy  EdgeType = "SecuredBy"  // e.g., EC2 -> SG
+	EdgeTypeContains   EdgeType = "Contains"   // e.g., VPC -> Subnet
+	EdgeTypeFlowsTo    EdgeType = "FlowsTo"    // e.g., ALB -> TargetGroup
+	EdgeTypeUnknown    EdgeType = "Unknown"
+)
+
+// Edge represents a directed connection with context.
+type Edge struct {
+	TargetID string
+	Type     EdgeType
+	Weight   int // 1-100, strength of dependency
+}
 
 // Node represents a resource in the infrastructure graph.
 type Node struct {
@@ -11,31 +30,44 @@ type Node struct {
 	Properties map[string]interface{} // Resource attributes
 	IsWaste    bool                   // Flagged as waste?
 	RiskScore  int                    // 0-100
+	Cost       float64                // Monthly cost estimate
 }
 
-// Graph represents the infrastructure topology as a DAG.
+// Graph represents the infrastructure topology as a Weighted DAG.
 type Graph struct {
 	Mu           sync.RWMutex
 	Nodes        map[string]*Node
-	Edges        map[string][]string // ID -> []ID (Flows To)
-	ReverseEdges map[string][]string // ID -> []ID (Attached To / Secured By)
+	Edges        map[string][]Edge // ID -> []Edge (Forward Dependencies)
+	ReverseEdges map[string][]Edge // ID -> []Edge (Reverse Dependencies)
 }
 
 // NewGraph creates a new empty graph.
 func NewGraph() *Graph {
 	return &Graph{
 		Nodes:        make(map[string]*Node),
-		Edges:        make(map[string][]string),
-		ReverseEdges: make(map[string][]string),
+		Edges:        make(map[string][]Edge),
+		ReverseEdges: make(map[string][]Edge),
 	}
 }
 
-// AddNode adds a resource to the graph.
+// AddNode adds a resource to the graph. Structure is idempotent.
 func (g *Graph) AddNode(id, resourceType string, props map[string]interface{}) {
+	if id == "" {
+		return
+	}
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
-	if _, exists := g.Nodes[id]; !exists {
+	if node, exists := g.Nodes[id]; exists {
+		// Merge properties if node exists (Last Write Wins for conflicts)
+		for k, v := range props {
+			node.Properties[k] = v
+		}
+		// Update type if it was unknown
+		if node.Type == "Unknown" && resourceType != "Unknown" {
+			node.Type = resourceType
+		}
+	} else {
 		g.Nodes[id] = &Node{
 			ID:         id,
 			Type:       resourceType,
@@ -44,21 +76,53 @@ func (g *Graph) AddNode(id, resourceType string, props map[string]interface{}) {
 	}
 }
 
-// AddEdge adds a directed edge from source to target.
+// AddEdge adds a directed edge from source to target with default type.
+// Maintained for backward compatibility.
 func (g *Graph) AddEdge(sourceID, targetID string) {
+	g.AddTypedEdge(sourceID, targetID, EdgeTypeUnknown, 1)
+}
+
+// AddTypedEdge adds a semantic relationship to the graph.
+func (g *Graph) AddTypedEdge(sourceID, targetID string, edgeType EdgeType, weight int) {
+	if sourceID == "" || targetID == "" {
+		return
+	}
+
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
 	// Ensure nodes exist (create placeholders if not)
 	if _, ok := g.Nodes[sourceID]; !ok {
-		g.Nodes[sourceID] = &Node{ID: sourceID, Type: "Unknown"}
+		g.Nodes[sourceID] = &Node{ID: sourceID, Type: "Unknown", Properties: make(map[string]interface{})}
 	}
 	if _, ok := g.Nodes[targetID]; !ok {
-		g.Nodes[targetID] = &Node{ID: targetID, Type: "Unknown"}
+		g.Nodes[targetID] = &Node{ID: targetID, Type: "Unknown", Properties: make(map[string]interface{})}
 	}
 
-	g.Edges[sourceID] = append(g.Edges[sourceID], targetID)
-	g.ReverseEdges[targetID] = append(g.ReverseEdges[targetID], sourceID)
+	// Add Forward Edge
+	// Check for duplicates to prevent graph explosion
+	exists := false
+	for _, e := range g.Edges[sourceID] {
+		if e.TargetID == targetID && e.Type == edgeType {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		g.Edges[sourceID] = append(g.Edges[sourceID], Edge{TargetID: targetID, Type: edgeType, Weight: weight})
+	}
+
+	// Add Reverse Edge
+	revExists := false
+	for _, e := range g.ReverseEdges[targetID] {
+		if e.TargetID == sourceID && e.Type == edgeType {
+			revExists = true
+			break
+		}
+	}
+	if !revExists {
+		g.ReverseEdges[targetID] = append(g.ReverseEdges[targetID], Edge{TargetID: sourceID, Type: edgeType, Weight: weight})
+	}
 }
 
 // GetConnectedComponent returns all nodes reachable from startID (BFS).
@@ -85,19 +149,16 @@ func (g *Graph) GetConnectedComponent(startID string) []*Node {
 		}
 
 		// Traverse forward edges
-		for _, neighbor := range g.Edges[currentID] {
-			if !visited[neighbor] {
-				queue = append(queue, neighbor)
+		for _, edge := range g.Edges[currentID] {
+			if !visited[edge.TargetID] {
+				queue = append(queue, edge.TargetID)
 			}
 		}
 
 		// Traverse backward edges (undirected connectivity check)
-		// If we want strictly downstream, remove this.
-		// For "Connected Component" in the waste sense (VPC + everything in it),
-		// we usually want full connectivity.
-		for _, neighbor := range g.ReverseEdges[currentID] {
-			if !visited[neighbor] {
-				queue = append(queue, neighbor)
+		for _, edge := range g.ReverseEdges[currentID] {
+			if !visited[edge.TargetID] {
+				queue = append(queue, edge.TargetID)
 			}
 		}
 	}
@@ -114,4 +175,39 @@ func (g *Graph) MarkWaste(id string, score int) {
 		node.IsWaste = true
 		node.RiskScore = score
 	}
+}
+
+// GetDownstream returns simple string slice of downstream IDs for compatibility.
+func (g *Graph) GetDownstream(id string) []string {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+
+	var downstream []string
+	if edges, ok := g.Edges[id]; ok {
+		for _, e := range edges {
+			downstream = append(downstream, e.TargetID)
+		}
+	}
+	return downstream
+}
+
+// GetUpstream returns simple string slice of upstream IDs for compatibility.
+func (g *Graph) GetUpstream(id string) []string {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+
+	var upstream []string
+	if edges, ok := g.ReverseEdges[id]; ok {
+		for _, e := range edges {
+			upstream = append(upstream, e.TargetID)
+		}
+	}
+	return upstream
+}
+
+// DumpStats returns graph statistics for the TUI.
+func (g *Graph) DumpStats() string {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return fmt.Sprintf("Nodes: %d | Edges: %d", len(g.Nodes), len(g.Edges))
 }

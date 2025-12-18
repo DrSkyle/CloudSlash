@@ -1,0 +1,36 @@
+# Binaries
+cloudslash
+cloudslash.exe
+keygen
+keygen.exe
+
+# Build Artifacts
+dist/
+builds/
+cloudslash-out/
+
+# OS Junk
+.DS_Store
+Thumbs.db
+
+# Dependencies
+**/node_modules/
+license-server/node_modules/
+.wrangler/
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Astra/Agent Reports (Optional, keeping repo clean)
+astra-*-report.html
+report.pdf

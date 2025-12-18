@@ -19,8 +19,8 @@ func TestGraph_AddNodeAndEdge(t *testing.T) {
 		t.Errorf("Expected 1 edge from node1, got %d", len(g.Edges["node1"]))
 	}
 
-	if g.Edges["node1"][0] != "node2" {
-		t.Errorf("Expected edge to node2, got %s", g.Edges["node1"][0])
+	if g.Edges["node1"][0].TargetID != "node2" {
+		t.Errorf("Expected edge to node2, got %s", g.Edges["node1"][0].TargetID)
 	}
 }
 

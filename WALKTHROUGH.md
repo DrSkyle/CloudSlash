@@ -1,6 +1,6 @@
-# CloudSlash User Walkthrough 🗡️☁️
+# CloudSlash User Guide
 
-Welcome to **CloudSlash**, the forensic accountant for your AWS infrastructure. This guide will walk you through how to use the software to identify waste, estimate costs, and safely remediate "Shadow IT" across your entire organization.
+This guide details how to use CloudSlash to identify AWS infrastructure waste and remediate it safely.
 
 ---
 
@@ -8,201 +8,84 @@ Welcome to **CloudSlash**, the forensic accountant for your AWS infrastructure. 
 
 ### Installation
 
-#### Option A: Quick Install (Developers)
-
-If you have Go installed, you can build and install it directly from source in one command:
-
-```bash
-go install github.com/DrSkyle/CloudSlash/cmd/cloudslash@latest
-```
-
-Then just run `cloudslash` from anywhere!
-
-#### Option B: Download Binary (No Dependencies)
-
-If you don't want to install Go, just run these commands to download and run the binary.
-
-**macOS (Apple Silicon / M1 / M2)**
-
-```bash
-curl -L -o cloudslash https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-darwin-arm64
-chmod +x cloudslash
-./cloudslash
-```
-
-**macOS (Intel)**
-
-```bash
-curl -L -o cloudslash https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-darwin-amd64
-chmod +x cloudslash
-./cloudslash
-```
-
-**Linux**
-
-```bash
-curl -L -o cloudslash https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-linux-amd64
-chmod +x cloudslash
-./cloudslash
-```
-
-**Windows** (PowerShell)
-
-```powershell
-Invoke-WebRequest -Uri https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-windows-amd64.exe -OutFile cloudslash.exe
-.\cloudslash.exe
-```
+See the [README](README.md) for installation instructions for your OS.
 
 ### Authentication
 
-CloudSlash uses your standard AWS credentials. It looks for profiles in `~/.aws/credentials` and `~/.aws/config`.
+CloudSlash uses standard AWS credentials found in `~/.aws/credentials` or `~/.aws/config`.
 
-- Ensure you have credentials set up via `aws configure` or `aws sso login`.
-- **Security Note**: CloudSlash runs locally and requires only `ReadOnlyAccess` + `ViewOnlyAccess`. It does _not_ send data to the cloud.
+1.  **Configure AWS CLI**: `aws configure`
+2.  **SSO Login** (if applicable): `aws sso login`
+3.  **Permissions**: Ensure your user/role has `ReadOnlyAccess` and `ViewOnlyAccess`.
 
 ---
 
-## 2. Core Workflows
+## 2. Workflows
 
-### 🔍 The "God Mode" Scan (Enterprise)
+### Standard Scan (Single Account)
 
-To scan **every AWS account** defined in your local configuration at once:
+Run CloudSlash to scan the default profile in `~/.aws/credentials`.
+
+```bash
+./cloudslash
+```
+
+### Multi-Account Scan ("God Mode")
+
+To scan **every AWS account** defined in your local configuration:
 
 ```bash
 ./cloudslash -license PRO-YOUR-KEY -all-profiles
 ```
 
-- **What happens?**
-  - CloudSlash iterates through every profile in `~/.aws/config`.
-  - It builds a massive in-memory graph of your entire infrastructure.
-  - It identifies cross-account waste and zombie resources.
-  - **New**: A real-time TUI shows scanning progress across threads.
+- **Behavior**: Iterates through all profiles in `~/.aws/config`, building a consolidated report of cross-account waste.
 
-### 📉 Right-Sizing Analysis
+### Cost Analysis
 
-CloudSlash doesn't just find trash; it finds "Fat" resources.
+CloudSlash queries the AWS Price List API to calculate the monthly cost of identified waste.
 
-- **Feature**: `UnderutilizedInstanceHeuristic`
-- **Logic**: Detects EC2 instances with **Max CPU < 5%** over the last 7 days.
-- **Output**: Marks these as waste and calculates the "Inefficient Spend" based on standard AWS pricing.
-
-### 💰 Real-Time Cost Estimation
-
-- CloudSlash queries the AWS Price List API in real-time.
-- It calculates the **exact monthly cost** of every waste item found (e.g., "This 50GB gp2 volume is costing you $5.00/mo").
+- **Example**: A 50GB `gp2` volume unused for 30 days = ~$5.00/mo waste.
 
 ---
 
-## 3. The Outputs
+## 3. Artifacts & Remediation
 
-After a scan completes, CloudSlash generates a `cloudslash-out/` directory with three key artifacts:
+After a scan, check the `cloudslash-out/` directory:
 
-### 1. The Executive Dashboard (`dashboard.html`) 📊
+### 1. Dashboard (`dashboard.html`)
 
-A beautiful, self-contained HTML report designed for CTOs and Finance teams.
+Open in any browser. Contains charts (Cost by Resource Type) and a sortable risk table.
 
-- **Features/Usage**:
-  - Open `cloudslash-out/dashboard.html` in any browser.
-  - **Charts**: View "Cost by Resource Type" and "Waste Utilization" visualized.
-  - **Table**: A detailed, sortable list of every waste item, risk score, and reason.
+### 2. Safeguard (`safe_cleanup.sh`)
 
-### 2. The Safe Remediation Check (`safe_cleanup.sh`) 🛡️
+Helper script for remediation.
 
-Your safety net. We never want you to lose data.
+- **Logic**: For every resource ID listed in the waste report, it attempts to create a snapshot/backup before deletion.
 
-- **Usage**:
-  ```bash
-  cd cloudslash-out
-  ./safe_cleanup.sh
-  ```
-- **What it does**:
-  - **Snapshot First**: Automatically creates a backup snapshot for every EBS volume and RDS instance _before_ touching it.
-  - **Safe Deletion**: Only deletes the resource after the snapshot is confirmed.
+### 3. Terraform (`waste.tf`)
 
-### 3. The Terraform Export (`waste.tf`) 🏗️
-
-For Infrastructure-as-Code teams who want to import waste to manage it properly before destruction.
-
-- **Usage**: Run `terraform init` and `terraform apply` to import the discovered waste resources into a state file.
+(Pro Only) Generates Terraform code representing the waste resources, allowing you to `terraform import` them and manage their destruction via IaC.
 
 ---
 
-## 4. Deep Dive: Heuristics
+## 4. Heuristic Logic
 
-CloudSlash uses "Forensic Heuristics" to find what other tools miss:
-
-| Heuristic        | What it Hunting         | Logic                                                                               |
-| :--------------- | :---------------------- | :---------------------------------------------------------------------------------- |
-| **Zombie EBS**   | Unattached Volumes      | Volumes not attached to any EC2. Checks if attached to instances stopped > 30 days. |
-| **Right-Sizing** | Over-provisioned EC2    | **CPU Max < 5%** (7-day window). Calculates cost of waste.                          |
-| **NAT Vampires** | Unused NAT Gateways     | Traffic < 1GB/mo & Connections < 5. High cost items!                                |
-| **S3 Ghosts**    | Stale Multipart Uploads | Incomplete uploads hanging in limbo > 7 days.                                       |
-| **RDS Zombies**  | Idle Databases          | DBs with **0 connections** in 7 days or status "stopped".                           |
-| **Elastic IP**   | Unattached IPs          | EIPs not attached to any NIC, costing hourly fees.                                  |
+| Resource          | Logic                                                           |
+| :---------------- | :-------------------------------------------------------------- |
+| **EBS Volumes**   | State is `available` OR attached to instance stopped > 30 days. |
+| **EC2 Instances** | Max CPU < 5% over 7 days (Right-Sizing).                        |
+| **NAT Gateways**  | Traffic < 1GB/mo AND Active Connections < 5.                    |
+| **S3 Buckets**    | Incomplete Multipart Uploads > 7 days old.                      |
+| **RDS**           | DB connections == 0 for 7 days OR status `stopped`.             |
+| **Elastic IPs**   | Not attached to any network interface.                          |
 
 ---
 
 ## 5. Command Reference
 
-| Flag            | Description                                             | Default             |
-| :-------------- | :------------------------------------------------------ | :------------------ |
-| `-license`      | Pro License Key                                         | `""` (Trial Mode)   |
-| `-region`       | AWS Region to scan                                      | `us-east-1`         |
-| `-all-profiles` | **Multi-Account**: Scan ALL profiles in `~/.aws/config` | `false`             |
-| `-mock`         | Run with simulated data (Demo Mode)                     | `false`             |
-| `-tfstate`      | Path to terraform state for drift detection             | `terraform.tfstate` |
-
----
-
-**Happy Hunting!** 🏹
-_For Pro Licenses, visit: [cloudslash-web.pages.dev](https://cloudslash-web.pages.dev/#download)_
-
----
-
-## 6. Serverless License Server (Admin Only) ☁️
-
-To enable the subscription-based licensing system, you must deploy the Cloudflare Worker.
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) & `npm` installed.
-- Cloudflare Account (Free Tier).
-
-### Deployment Steps
-
-1.  **Login to Cloudflare**:
-
-    ```bash
-    npx wrangler login
-    ```
-
-    - (This will open your browser to authorize).
-
-2.  **Create KV Namespace**:
-
-    ```bash
-    npx wrangler kv:namespace create "LICENSES"
-    ```
-
-    - Copy the output `id` (e.g., `889e09...`) and update `license-server/wrangler.toml` with it.
-
-3.  **Deploy**:
-
-    ```bash
-    cd license-server
-    npm install
-    npx wrangler deploy
-    ```
-
-4.  **Connect App**:
-    - Copy your worker URL (e.g., `https://cloudslash-license-server.yourname.workers.dev`).
-    - Update `internal/license/check.go`:
-      ```go
-      const LicenseServerURL = "https://your-worker.workers.dev/verify"
-      ```
-    - Rebuild the CLI: `go build -o cloudslash ./cmd/cloudslash`.
-
-### Managing Subscriptions
-
-- **Issue Key**: Use the Cloudflare Dashboard -> KV, or implement a simple `POST /webhook` script to call your worker.
-- **Revoke**: Delete the key from KV in the Cloudflare Dashboard. The CLI will stop working immediately.
+| Flag               | Description                                   |
+| :----------------- | :-------------------------------------------- |
+| `-license [KEY]`   | Activate Pro features.                        |
+| `-region [REGION]` | Override default region (e.g., `us-west-2`).  |
+| `-all-profiles`    | Scan all configured AWS profiles.             |
+| `-tfstate [PATH]`  | Path to local `.tfstate` for drift detection. |

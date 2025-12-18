@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
-	"github.com/saujanyayaya/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/graph"
 )
 
 type ELBScanner struct {

@@ -1,97 +1,59 @@
-# CloudSlash 🗡️☁️
+# CloudSlash
 
-**The Forensic Accountant for AWS Infrastructure.**
+**Infrastructure Waste Analysis for AWS**
 
-> "Most tools are Janitors. CloudSlash is a Forensic Accountant."
-
-CloudSlash is a CLI tool that scans your AWS infrastructure for "Shadow IT" and waste using a Zero Trust approach. It assumes your tags are lying and your console is outdated. It uses deep-scan heuristics to find the truth.
+CloudSlash identifies idle, orphaned, and underutilized resources in your AWS environment. Unlike tools that rely solely on "Status" checks, CloudSlash correlates CloudWatch metrics with resource topology to find actual waste (e.g., available volumes with no IOPS, NAT Gateways with low throughput).
 
 ![License](https://img.shields.io/badge/license-Commercial-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Mac%20%7C%20Linux%20%7C%20Windows-lightgrey)
 
-## 🚀 Features
+## Core Capabilities
 
-- **Zero Trust Scanning**: Relies on CloudWatch telemetry and Graph Topology, not just "Status: Available".
-- **Read-Only**: strictly adheres to `ViewOnlyAccess`. We never write to your cloud.
-- **Shadow State Reconciliation**: Compares your live infrastructure against your Terraform State (`.tfstate`) to find drift.
-- **Deep-Scan Heuristics**:
-  - **Zombie EBS**: Volumes attached to instances stopped for > 30 days.
-  - **NAT Gateway Vampires**: Gateways with < 1GB traffic/month.
-  - **S3 Multipart Ghosts**: Incomplete uploads hidden in buckets.
-  - **RDS & ELB**: Stopped DBs and unused Load Balancers.
-- **Reverse Terraform**: Generates `waste.tf` and `import.sh` to help you clean up safely.
+- **Zero Trust Scanning**: Verifies utilization via telemetry rather than metadata.
+- **Read-Only**: Operates with `ViewOnlyAccess`. No write permissions required.
+- **Drift Detection**: Compares live infrastructure against Terraform state.
+- **Heuristic Analysis**:
+  - **Zombie EBS**: Detects available volumes or attached volumes with 0 IOPS/30 days.
+  - **Idle NAT Gateways**: Identifies gateways costing hourly rates but processing minimal traffic.
+  - **S3 Multipart Uploads**: Finds incomplete uploads consuming storage space.
+- **Remediation**: Generates `waste.tf` and `import.sh` for safe, managed cleanup.
 
-## 📦 Installation & Quick Start
+## Installation
 
-### macOS (Apple Silicon / M1 / M2)
-
-```bash
-curl -L -o cloudslash https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-darwin-arm64
-chmod +x cloudslash
-./cloudslash
-```
-
-### macOS (Intel)
+### macOS / Linux
 
 ```bash
-curl -L -o cloudslash https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-darwin-amd64
-chmod +x cloudslash
-./cloudslash
-```
-
-### Linux
-
-```bash
-curl -L -o cloudslash https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-linux-amd64
-chmod +x cloudslash
-./cloudslash
+curl -L https://cloudslash.pages.dev/install.sh | bash
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-Invoke-WebRequest -Uri https://github.com/DrSkyle/CloudSlash/releases/latest/download/cloudslash-windows-amd64.exe -OutFile cloudslash.exe
-.\cloudslash.exe
+iwr https://cloudslash.pages.dev/install.ps1 -useb | iex
 ```
 
----
+## Usage
 
-## 📖 User Guide
-
-👉 **[Read the Full User Walkthrough](WALKTHROUGH.md)** for a deep dive into Multi-Account Scanning, Dashboards, and Safe Remediation.
-
-## 🛠 Features
-
-| Feature                    |  Trial Mode   | Pro Mode |
-| :------------------------- | :-----------: | :------: |
-| **Scan EC2, S3, RDS, ELB** |      ✅       |    ✅    |
-| **Heuristic Analysis**     |      ✅       |    ✅    |
-| **TUI Dashboard**          |      ✅       |    ✅    |
-| **View Resource IDs**      | ❌ (Redacted) |    ✅    |
-| **Generate `waste.tf`**    |      ❌       |    ✅    |
-| **Generate `import.sh`**   |      ❌       |    ✅    |
-
-### Activate Pro Mode
-
-To unlock full features (Real IDs, Terraform Generation), you need a license key.
-[**Get a Pro License Key**](https://cloudslash-web.pages.dev/#download)
+**Trial Mode (Free)**
+Runs locally. Scans your setup and reports findings in the terminal UI. IDs are redacted.
 
 ```bash
-./cloudslash -license PRO-YOUR-KEY
+./cloudslash
 ```
 
-## 📜 Licensing
+**Pro Mode**
+Unlocks Resource IDs and Terraform generation.
+[Purchase License](https://cloudslash.pages.dev)
 
-CloudSlash is sold under a standard commercial license.
+```bash
+./cloudslash -license YOUR-KEY
+```
 
-## 🔒 Security
+## Security
 
-- **Read-Only:** CloudSlash only requires `ReadOnlyAccess`.
-- **Local Execution:** All analysis happens on your machine. No data is sent to our servers.
-- **Open Core:** The core logic is transparent and audit-friendly.
+- **IAM Scope:** Requires only `ReadOnlyAccess`.
+- **Data Privacy:** Analysis is performed locally (Edge Compute). No credential or graph data leaves your machine.
 
-## 🛠️ Architecture
+## Architecture
 
-- **Swarm Engine**: Uses AIMD (Additive Increase, Multiplicative Decrease) to scan 500+ accounts/resources in seconds without throttling.
-- **In-Memory DAG**: Models your infrastructure as a graph to find disconnected subgraphs (waste).
-- **Matrix TUI**: A cyberpunk-style terminal interface built with Bubble Tea.
+Built in Go. Uses an in-memory graph to model resource relationships. The TUI is powered by Bubble Tea for responsive, real-time feedback during scans.

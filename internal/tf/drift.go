@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/saujanyayaya/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/graph"
 )
 
 // DriftDetector identifies resources that exist in the graph but not in the Terraform state.

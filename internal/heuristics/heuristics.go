@@ -3,26 +3,25 @@ package heuristics
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	internalaws "github.com/DrSkyle/cloudslash/internal/aws"
+	"github.com/DrSkyle/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/pricing"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
-	internalaws "github.com/saujanyayaya/cloudslash/internal/aws"
-	"github.com/saujanyayaya/cloudslash/internal/graph"
 )
-
-type Heuristic interface {
-	Analyze(ctx context.Context, g *graph.Graph) error
-}
 
 // NATGatewayHeuristic checks for unused NAT Gateways.
 type NATGatewayHeuristic struct {
 	CW *internalaws.CloudWatchClient
 }
 
-func (h *NATGatewayHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
+func (h *NATGatewayHeuristic) Name() string { return "NATGatewayHeuristic" }
+
+func (h *NATGatewayHeuristic) Run(ctx context.Context, g *graph.Graph) error {
 	g.Mu.RLock()
-	// Copy nodes to avoid holding lock during network calls
 	var natGateways []*graph.Node
 	for _, node := range g.Nodes {
 		if node.Type == "AWS::EC2::NatGateway" {
@@ -32,13 +31,8 @@ func (h *NATGatewayHeuristic) Analyze(ctx context.Context, g *graph.Graph) error
 	g.Mu.RUnlock()
 
 	for _, node := range natGateways {
-		// Get metrics for the last 7 days
 		endTime := time.Now()
 		startTime := endTime.Add(-7 * 24 * time.Hour)
-
-		// Parse ID from ARN
-		// arn:aws:ec2:region:account:natgateway/nat-12345
-		// Simplified parsing
 		var id string
 		fmt.Sscanf(node.ID, "arn:aws:ec2:region:account:natgateway/%s", &id)
 		if id == "" {
@@ -49,20 +43,15 @@ func (h *NATGatewayHeuristic) Analyze(ctx context.Context, g *graph.Graph) error
 			{Name: aws.String("NatGatewayId"), Value: aws.String(id)},
 		}
 
-		// Check ActiveConnectionCount
 		maxConns, err := h.CW.GetMetricMax(ctx, "AWS/NATGateway", "ActiveConnectionCount", dims, startTime, endTime)
 		if err != nil {
-			fmt.Printf("Error getting metrics for %s: %v\n", id, err)
 			continue
 		}
-
-		// Check BytesOut
 		sumBytes, err := h.CW.GetMetricSum(ctx, "AWS/NATGateway", "BytesOutToDestination", dims, startTime, endTime)
 		if err != nil {
 			continue
 		}
 
-		// Heuristic: If max connections < 5 and total bytes < 1GB (1e9) in 7 days -> Waste
 		if maxConns < 5 && sumBytes < 1e9 {
 			g.MarkWaste(node.ID, 80)
 			node.Properties["Reason"] = fmt.Sprintf("Unused NAT Gateway: MaxConns=%.0f, BytesOut=%.0f", maxConns, sumBytes)
@@ -72,49 +61,89 @@ func (h *NATGatewayHeuristic) Analyze(ctx context.Context, g *graph.Graph) error
 }
 
 // ZombieEBSHeuristic checks for unattached or zombie volumes.
-type ZombieEBSHeuristic struct{}
+type ZombieEBSHeuristic struct {
+	Pricing *pricing.Client
+}
 
-func (h *ZombieEBSHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
-	g.Mu.Lock()
-	defer g.Mu.Unlock()
+func (h *ZombieEBSHeuristic) Name() string { return "ZombieEBSHeuristic" }
+
+func (h *ZombieEBSHeuristic) Run(ctx context.Context, g *graph.Graph) error {
+	g.Mu.RLock()
+	type volumeData struct {
+		Node             *graph.Node
+		State            string
+		Size             int
+		Type             string
+		AttachedInstance string
+		DeleteOnTerm     bool
+	}
+	var volumes []volumeData
 
 	for _, node := range g.Nodes {
-		if node.Type != "AWS::EC2::Volume" {
-			continue
-		}
-
-		state, _ := node.Properties["State"].(string)
-		if state == "available" {
-			// Unattached volume
-			node.IsWaste = true
-			node.RiskScore = 90
-			node.Properties["Reason"] = "Unattached EBS Volume"
-			continue
-		}
-
-		if state == "in-use" {
-			// Check attached instance
-			instanceID, ok := node.Properties["AttachedInstanceId"].(string)
-			if !ok {
-				continue
+		if node.Type == "AWS::EC2::Volume" {
+			sizeVal := 0
+			if s, ok := node.Properties["Size"].(int32); ok {
+				sizeVal = int(s)
+			} else if s, ok := node.Properties["Size"].(int); ok {
+				sizeVal = s
 			}
 
-			// Find instance node
-			instanceARN := fmt.Sprintf("arn:aws:ec2:region:account:instance/%s", instanceID)
+			state, _ := node.Properties["State"].(string)
+			volType, _ := node.Properties["VolumeType"].(string)
+			attachedInstance, _ := node.Properties["AttachedInstanceId"].(string)
+
+			volumes = append(volumes, volumeData{
+				Node:             node,
+				State:            state,
+				Size:             sizeVal,
+				Type:             volType,
+				AttachedInstance: attachedInstance,
+				DeleteOnTerm:     func() bool { v, _ := node.Properties["DeleteOnTermination"].(bool); return v }(),
+			})
+		}
+	}
+	g.Mu.RUnlock()
+
+	for _, vol := range volumes {
+		isWaste := false
+		reason := ""
+		score := 0
+
+		if vol.State == "available" {
+			isWaste = true
+			score = 90
+			reason = "Unattached EBS Volume"
+		} else if vol.State == "in-use" && vol.AttachedInstance != "" {
+			instanceARN := fmt.Sprintf("arn:aws:ec2:region:account:instance/%s", vol.AttachedInstance)
+
+			g.Mu.RLock()
 			instanceNode, ok := g.Nodes[instanceARN]
-			if !ok {
-				continue
+			var instanceState string
+			var launchTime time.Time
+			if ok {
+				instanceState, _ = instanceNode.Properties["State"].(string)
+				launchTime, _ = instanceNode.Properties["LaunchTime"].(time.Time)
 			}
+			g.Mu.RUnlock()
 
-			instanceState, _ := instanceNode.Properties["State"].(string)
-			launchTime, _ := instanceNode.Properties["LaunchTime"].(time.Time)
-			deleteOnTerm, _ := node.Properties["DeleteOnTermination"].(bool)
+			if ok {
+				if instanceState == "stopped" && time.Since(launchTime) > 30*24*time.Hour && !vol.DeleteOnTerm {
+					isWaste = true
+					score = 70
+					reason = "Zombie EBS: Attached to stopped instance > 30 days"
+				}
+			}
+		}
 
-			// Heuristic: Instance stopped > 30 days and DeleteOnTermination is false
-			if instanceState == "stopped" && time.Since(launchTime) > 30*24*time.Hour && !deleteOnTerm {
-				node.IsWaste = true
-				node.RiskScore = 70
-				node.Properties["Reason"] = "Zombie EBS: Attached to stopped instance > 30 days"
+		if isWaste {
+			g.MarkWaste(vol.Node.ID, score)
+			vol.Node.Properties["Reason"] = reason
+
+			if h.Pricing != nil && vol.Size > 0 {
+				cost, err := h.Pricing.GetEBSPrice(ctx, "us-east-1", vol.Type, vol.Size)
+				if err == nil {
+					vol.Node.Cost = cost
+				}
 			}
 		}
 	}
@@ -124,7 +153,9 @@ func (h *ZombieEBSHeuristic) Analyze(ctx context.Context, g *graph.Graph) error 
 // ElasticIPHeuristic checks for EIPs attached to stopped instances or unattached.
 type ElasticIPHeuristic struct{}
 
-func (h *ElasticIPHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
+func (h *ElasticIPHeuristic) Name() string { return "ElasticIPHeuristic" }
+
+func (h *ElasticIPHeuristic) Run(ctx context.Context, g *graph.Graph) error {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
@@ -135,14 +166,12 @@ func (h *ElasticIPHeuristic) Analyze(ctx context.Context, g *graph.Graph) error 
 
 		instanceID, hasInstance := node.Properties["InstanceId"].(string)
 		if !hasInstance {
-			// Unattached EIP
 			node.IsWaste = true
 			node.RiskScore = 50
 			node.Properties["Reason"] = "Unattached Elastic IP"
 			continue
 		}
 
-		// Check instance state
 		instanceARN := fmt.Sprintf("arn:aws:ec2:region:account:instance/%s", instanceID)
 		instanceNode, ok := g.Nodes[instanceARN]
 		if ok {
@@ -160,14 +189,14 @@ func (h *ElasticIPHeuristic) Analyze(ctx context.Context, g *graph.Graph) error 
 // S3MultipartHeuristic checks for incomplete multipart uploads.
 type S3MultipartHeuristic struct{}
 
-func (h *S3MultipartHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
+func (h *S3MultipartHeuristic) Name() string { return "S3MultipartHeuristic" }
+
+func (h *S3MultipartHeuristic) Run(ctx context.Context, g *graph.Graph) error {
 	g.Mu.Lock()
 	defer g.Mu.Unlock()
 
 	for _, node := range g.Nodes {
 		if node.Type == "AWS::S3::MultipartUpload" {
-			// All incomplete multipart uploads found by scanner are considered waste
-			// We could add a time threshold (e.g. > 7 days old)
 			initiated, ok := node.Properties["Initiated"].(time.Time)
 			if ok && time.Since(initiated) > 7*24*time.Hour {
 				node.IsWaste = true
@@ -184,7 +213,9 @@ type RDSHeuristic struct {
 	CW *internalaws.CloudWatchClient
 }
 
-func (h *RDSHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
+func (h *RDSHeuristic) Name() string { return "RDSHeuristic" }
+
+func (h *RDSHeuristic) Run(ctx context.Context, g *graph.Graph) error {
 	g.Mu.RLock()
 	var rdsInstances []*graph.Node
 	for _, node := range g.Nodes {
@@ -196,10 +227,33 @@ func (h *RDSHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
 
 	for _, node := range rdsInstances {
 		status, _ := node.Properties["Status"].(string)
+
 		if status == "stopped" {
 			g.MarkWaste(node.ID, 80)
 			node.Properties["Reason"] = "RDS Instance is stopped"
 			continue
+		}
+
+		endTime := time.Now()
+		startTime := endTime.Add(-7 * 24 * time.Hour)
+		var id string
+		fmt.Sscanf(node.ID, "arn:aws:rds:region:account:db:%s", &id)
+		if id == "" {
+			continue
+		}
+
+		dims := []types.Dimension{
+			{Name: aws.String("DBInstanceIdentifier"), Value: aws.String(id)},
+		}
+
+		maxConns, err := h.CW.GetMetricMax(ctx, "AWS/RDS", "DatabaseConnections", dims, startTime, endTime)
+		if err != nil {
+			continue
+		}
+
+		if maxConns == 0 {
+			g.MarkWaste(node.ID, 60)
+			node.Properties["Reason"] = "RDS Instance has 0 connections in 7 days"
 		}
 	}
 	return nil
@@ -210,7 +264,9 @@ type ELBHeuristic struct {
 	CW *internalaws.CloudWatchClient
 }
 
-func (h *ELBHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
+func (h *ELBHeuristic) Name() string { return "ELBHeuristic" }
+
+func (h *ELBHeuristic) Run(ctx context.Context, g *graph.Graph) error {
 	g.Mu.RLock()
 	var elbs []*graph.Node
 	for _, node := range g.Nodes {
@@ -221,11 +277,198 @@ func (h *ELBHeuristic) Analyze(ctx context.Context, g *graph.Graph) error {
 	g.Mu.RUnlock()
 
 	for _, node := range elbs {
-		// Placeholder for ELB logic
-		// If RequestCount == 0 for 7 days -> Waste
-		// g.MarkWaste(node.ID, 70)
-		// node.Properties["Reason"] = "ELB has 0 requests in 7 days"
-		_ = node
+		endTime := time.Now()
+		startTime := endTime.Add(-7 * 24 * time.Hour)
+		var lbDimValue string
+		parts := strings.Split(node.ID, ":loadbalancer/")
+		if len(parts) > 1 {
+			lbDimValue = parts[1]
+		} else {
+			continue
+		}
+
+		dims := []types.Dimension{
+			{Name: aws.String("LoadBalancer"), Value: aws.String(lbDimValue)},
+		}
+
+		requestCount, err := h.CW.GetMetricSum(ctx, "AWS/ApplicationELB", "RequestCount", dims, startTime, endTime)
+		if err != nil {
+			continue
+		}
+
+		if requestCount < 10 {
+			g.MarkWaste(node.ID, 70)
+			node.Properties["Reason"] = fmt.Sprintf("ELB unused: Only %.0f requests in 7 days", requestCount)
+		}
+	}
+	return nil
+}
+
+// UnderutilizedInstanceHeuristic identifies candidates for Right-Sizing.
+type UnderutilizedInstanceHeuristic struct {
+	CW      *internalaws.CloudWatchClient
+	Pricing *pricing.Client
+}
+
+func (h *UnderutilizedInstanceHeuristic) Name() string { return "UnderutilizedInstanceHeuristic" }
+
+func (h *UnderutilizedInstanceHeuristic) Run(ctx context.Context, g *graph.Graph) error {
+	g.Mu.RLock()
+	var instances []*graph.Node
+	for _, node := range g.Nodes {
+		if node.Type == "AWS::EC2::Instance" {
+			instances = append(instances, node)
+		}
+	}
+	g.Mu.RUnlock()
+
+	for _, node := range instances {
+		state, _ := node.Properties["State"].(string)
+		if state != "running" {
+			continue
+		}
+
+		instanceType, _ := node.Properties["InstanceType"].(string)
+		instanceID := ""
+		if parts := strings.Split(node.ID, "/"); len(parts) > 1 {
+			instanceID = parts[len(parts)-1]
+		}
+		if instanceID == "" {
+			continue
+		}
+
+		endTime := time.Now()
+		startTime := endTime.Add(-7 * 24 * time.Hour)
+		dims := []types.Dimension{
+			{Name: aws.String("InstanceId"), Value: aws.String(instanceID)},
+		}
+
+		maxCPU, err := h.CW.GetMetricMax(ctx, "AWS/EC2", "CPUUtilization", dims, startTime, endTime)
+		if err != nil {
+			continue
+		}
+
+		if maxCPU < 5.0 {
+			g.MarkWaste(node.ID, 60)
+			node.Properties["Reason"] = fmt.Sprintf("Right-Sizing Opportunity: Max CPU %.2f%% < 5%% over 7 days", maxCPU)
+
+			if h.Pricing != nil {
+				region := "us-east-1"
+				parts := strings.Split(node.ID, ":")
+				if len(parts) > 3 {
+					region = parts[3]
+				}
+
+				cost, err := h.Pricing.GetEC2InstancePrice(ctx, region, instanceType)
+				if err == nil {
+					node.Cost = cost
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// TagComplianceHeuristic checks for missing required tags.
+type TagComplianceHeuristic struct {
+	RequiredTags []string
+}
+
+func (h *TagComplianceHeuristic) Name() string { return "TagComplianceHeuristic" }
+
+func (h *TagComplianceHeuristic) Run(ctx context.Context, g *graph.Graph) error {
+	if len(h.RequiredTags) == 0 {
+		return nil
+	}
+
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+
+	for _, node := range g.Nodes {
+		tags, ok := node.Properties["Tags"].(map[string]string)
+		if !ok {
+			if node.Type == "AWS::EC2::Instance" || node.Type == "AWS::EC2::Volume" {
+				tags = make(map[string]string)
+			} else {
+				continue
+			}
+		}
+
+		missing := []string{}
+		for _, req := range h.RequiredTags {
+			found := false
+			if _, exists := tags[req]; exists {
+				found = true
+			}
+			if !found {
+				missing = append(missing, req)
+			}
+		}
+
+		if len(missing) > 0 {
+			if !node.IsWaste {
+				node.IsWaste = true
+				node.RiskScore = 40
+				node.Properties["Reason"] = fmt.Sprintf("Compliance Violation: Missing Tags: %s", strings.Join(missing, ", "))
+			} else {
+				currentReason, _ := node.Properties["Reason"].(string)
+				node.Properties["Reason"] = currentReason + fmt.Sprintf("; Compliance: Missing %s", strings.Join(missing, ", "))
+			}
+		}
+	}
+	return nil
+}
+
+// IAMHeuristic checks for dangerous IAM privileges on EC2 instances.
+type IAMHeuristic struct {
+	IAM *internalaws.IAMClient
+}
+
+func (h *IAMHeuristic) Name() string { return "IAMHeuristic" }
+
+func (h *IAMHeuristic) Run(ctx context.Context, g *graph.Graph) error {
+	if h.IAM == nil {
+		return nil
+	}
+
+	g.Mu.RLock()
+	var instances []*graph.Node
+	for _, node := range g.Nodes {
+		if node.Type == "AWS::EC2::Instance" {
+			instances = append(instances, node)
+		}
+	}
+	g.Mu.RUnlock()
+
+	for _, node := range instances {
+		profile, ok := node.Properties["IamInstanceProfile"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		arn, _ := profile["Arn"].(string)
+		if arn == "" {
+			continue
+		}
+
+		parts := strings.Split(arn, "/")
+		if len(parts) < 2 {
+			continue
+		}
+		profileName := parts[len(parts)-1]
+
+		roles, err := h.IAM.GetRolesFromInstanceProfile(ctx, profileName)
+		if err != nil {
+			continue
+		}
+
+		for _, role := range roles {
+			isAdmin, err := h.IAM.CheckAdminPrivileges(ctx, role)
+			if err == nil && isAdmin {
+				g.MarkWaste(node.ID, 95)
+				node.Properties["Reason"] = fmt.Sprintf("SECURITY ALERT: Instance Profile '%s' has AdministratorAccess!", profileName)
+			}
+		}
 	}
 	return nil
 }

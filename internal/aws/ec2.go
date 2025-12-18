@@ -4,13 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DrSkyle/cloudslash/internal/graph"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/saujanyayaya/cloudslash/internal/graph"
 )
 
+type EC2Client interface {
+	DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
+	DescribeVolumes(ctx context.Context, params *ec2.DescribeVolumesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVolumesOutput, error)
+	DescribeNatGateways(ctx context.Context, params *ec2.DescribeNatGatewaysInput, optFns ...func(*ec2.Options)) (*ec2.DescribeNatGatewaysOutput, error)
+	DescribeAddresses(ctx context.Context, params *ec2.DescribeAddressesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeAddressesOutput, error)
+}
+
 type EC2Scanner struct {
-	Client *ec2.Client
+	Client EC2Client
 	Graph  *graph.Graph
 }
 
@@ -45,19 +52,19 @@ func (s *EC2Scanner) ScanInstances(ctx context.Context) error {
 				// Link to VPC
 				if instance.VpcId != nil {
 					vpcARN := fmt.Sprintf("arn:aws:ec2:region:account:vpc/%s", *instance.VpcId)
-					s.Graph.AddEdge(arn, vpcARN)
+					s.Graph.AddTypedEdge(vpcARN, arn, graph.EdgeTypeContains, 100)
 				}
 
 				// Link to Subnet
 				if instance.SubnetId != nil {
 					subnetARN := fmt.Sprintf("arn:aws:ec2:region:account:subnet/%s", *instance.SubnetId)
-					s.Graph.AddEdge(arn, subnetARN)
+					s.Graph.AddTypedEdge(subnetARN, arn, graph.EdgeTypeContains, 100)
 				}
 
 				// Link to Security Groups
 				for _, sg := range instance.SecurityGroups {
 					sgARN := fmt.Sprintf("arn:aws:ec2:region:account:security-group/%s", *sg.GroupId)
-					s.Graph.AddEdge(arn, sgARN)
+					s.Graph.AddTypedEdge(arn, sgARN, graph.EdgeTypeSecuredBy, 100)
 				}
 			}
 		}
@@ -89,7 +96,7 @@ func (s *EC2Scanner) ScanVolumes(ctx context.Context) error {
 			for _, att := range volume.Attachments {
 				if att.InstanceId != nil {
 					instanceARN := fmt.Sprintf("arn:aws:ec2:region:account:instance/%s", *att.InstanceId)
-					s.Graph.AddEdge(arn, instanceARN)
+					s.Graph.AddTypedEdge(arn, instanceARN, graph.EdgeTypeAttachedTo, 100)
 
 					// Store attachment info in properties for heuristics
 					props["DeleteOnTermination"] = att.DeleteOnTermination

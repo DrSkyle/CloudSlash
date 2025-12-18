@@ -5,16 +5,21 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
+	"strings"
+	"sync"
 
+	"github.com/DrSkyle/cloudslash/internal/aws"
+	"github.com/DrSkyle/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/heuristics"
+	"github.com/DrSkyle/cloudslash/internal/license"
+	"github.com/DrSkyle/cloudslash/internal/notifier"
+	"github.com/DrSkyle/cloudslash/internal/pricing"
+	"github.com/DrSkyle/cloudslash/internal/remediation"
+	"github.com/DrSkyle/cloudslash/internal/report"
+	"github.com/DrSkyle/cloudslash/internal/swarm"
+	"github.com/DrSkyle/cloudslash/internal/tf"
+	"github.com/DrSkyle/cloudslash/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/saujanyayaya/cloudslash/internal/aws"
-	"github.com/saujanyayaya/cloudslash/internal/graph"
-	"github.com/saujanyayaya/cloudslash/internal/heuristics"
-	"github.com/saujanyayaya/cloudslash/internal/license"
-	"github.com/saujanyayaya/cloudslash/internal/swarm"
-	"github.com/saujanyayaya/cloudslash/internal/tf"
-	"github.com/saujanyayaya/cloudslash/internal/ui"
 )
 
 func main() {
@@ -22,6 +27,9 @@ func main() {
 	region := flag.String("region", "us-east-1", "AWS Region")
 	tfStatePath := flag.String("tfstate", "terraform.tfstate", "Path to terraform.tfstate")
 	mockMode := flag.Bool("mock", false, "Run in Mock Mode (Simulated Data)")
+	allProfiles := flag.Bool("all-profiles", false, "Scan all available AWS profiles in ~/.aws/config")
+	requiredTags := flag.String("required-tags", "", "Comma-separated list of required tags (e.g. Owner,CostCenter)")
+	slackWebhook := flag.String("slack-webhook", "", "Slack Webhook URL for reporting")
 	flag.Parse()
 
 	// 1. License Check (Fail-Open / Trial Mode)
@@ -40,146 +48,191 @@ func main() {
 
 	// 2. Initialize Components
 	ctx := context.Background()
-
-	// awsClient initialization moved to Real AWS Mode block
-	// Verify Identity
-	// identity, err := awsClient.VerifyIdentity(ctx) // Moved to real mode block
 	var g *graph.Graph
 	var engine *swarm.Engine
-	var cwClient *aws.CloudWatchClient // Declare here, initialize in else block
+	var cwClient *aws.CloudWatchClient
+	var iamClient *aws.IAMClient
 
 	g = graph.NewGraph()
-	engine = swarm.NewEngine() // Start with default workers
+	engine = swarm.NewEngine()
 	engine.Start(ctx)
 
 	if *mockMode {
 		fmt.Println("Running in MOCK MODE. Simulating AWS environment...")
 		mockScanner := aws.NewMockScanner(g)
-		// Run scanner synchronously
 		mockScanner.Scan(ctx)
 
-		// Run heuristics synchronously for stable demo
-		zombieHeuristic := &heuristics.ZombieEBSHeuristic{}
-		zombieHeuristic.Analyze(ctx, g)
+		// Synchronous Heuristics for Demo
+		heuristicEngine := heuristics.NewEngine()
+		heuristicEngine.Register(&heuristics.ZombieEBSHeuristic{})
+		heuristicEngine.Register(&heuristics.S3MultipartHeuristic{})
 
-		s3Heuristic := &heuristics.S3MultipartHeuristic{}
-		s3Heuristic.Analyze(ctx, g)
+		if err := heuristicEngine.Run(ctx, g); err != nil {
+			fmt.Printf("Heuristic run failed: %v\n", err)
+		}
+
+		os.Mkdir("cloudslash-out", 0755)
+		if err := report.GenerateHTML(g, "cloudslash-out/dashboard.html"); err != nil {
+			fmt.Printf("Failed to generate mock dashboard: %v\n", err)
+		}
 	} else {
 		// Real AWS Mode
-		awsClient, err := aws.NewClient(ctx, *region)
-		if err != nil {
-			fmt.Printf("Failed to create AWS client: %v\n", err)
-			os.Exit(1)
+		profiles := []string{""}
+		if *allProfiles {
+			var err error
+			profiles, err = aws.ListProfiles()
+			if err != nil {
+				fmt.Printf("Failed to list profiles: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Deep Scanning enabled. Found %d profiles.\n", len(profiles))
 		}
 
-		// Verify Identity
-		identity, err := awsClient.VerifyIdentity(ctx)
-		if err != nil {
-			fmt.Printf("Failed to verify identity: %v\n", err)
-			os.Exit(1)
+		var pricingClient *pricing.Client
+		if !isTrial {
+			var err error
+			pricingClient, err = pricing.NewClient(ctx)
+			if err != nil {
+				fmt.Printf("Warning: Failed to initialize Pricing Client: %v\n", err)
+			}
 		}
-		fmt.Printf("Connected to AWS Account: %s\n", identity)
 
-		// Scanners
-		ec2Scanner := aws.NewEC2Scanner(awsClient.Config, g)
-		s3Scanner := aws.NewS3Scanner(awsClient.Config, g)
-		rdsScanner := aws.NewRDSScanner(awsClient.Config, g)
-		elbScanner := aws.NewELBScanner(awsClient.Config, g)
-		cwClient = aws.NewCloudWatchClient(awsClient.Config)
+		var scanWg sync.WaitGroup
 
-		// Submit Scan Tasks
-		engine.Submit(func(ctx context.Context) error {
-			return ec2Scanner.ScanInstances(ctx)
-		})
-		engine.Submit(func(ctx context.Context) error {
-			return ec2Scanner.ScanVolumes(ctx)
-		})
-		engine.Submit(func(ctx context.Context) error {
-			return ec2Scanner.ScanNatGateways(ctx)
-		})
-		engine.Submit(func(ctx context.Context) error {
-			return ec2Scanner.ScanAddresses(ctx)
-		})
-		engine.Submit(func(ctx context.Context) error {
-			return s3Scanner.ScanBuckets(ctx)
-		})
-		engine.Submit(func(ctx context.Context) error {
-			return rdsScanner.ScanInstances(ctx)
-		})
-		engine.Submit(func(ctx context.Context) error {
-			return elbScanner.ScanLoadBalancers(ctx)
-		})
+		for _, profile := range profiles {
+			if *allProfiles {
+				fmt.Printf(">>> Scanning Profile: %s\n", profile)
+			}
+
+			client, err := runScanForProfile(ctx, *region, profile, g, engine, &scanWg)
+			if err != nil {
+				fmt.Printf("Scan failed for profile %s: %v\n", profile, err)
+				continue
+			}
+
+			if client != nil {
+				cwClient = aws.NewCloudWatchClient(client.Config)
+				iamClient = aws.NewIAMClient(client.Config)
+			}
+		}
+
+		// Background Analysis & Reporting
+		go func() {
+			scanWg.Wait() // Wait for ingestion
+
+			// Shadow State Reconciliation
+			if _, err := os.Stat(*tfStatePath); err == nil {
+				state, err := tf.ParseStateFile(*tfStatePath)
+				if err == nil {
+					detector := tf.NewDriftDetector(g, state)
+					detector.ScanForDrift()
+				}
+			}
+
+			// Run Genius Heuristic Engine
+			hEngine := heuristics.NewEngine()
+
+			// Register Capability-Based Heuristics
+			hEngine.Register(&heuristics.ElasticIPHeuristic{})
+			hEngine.Register(&heuristics.S3MultipartHeuristic{})
+
+			if cwClient != nil {
+				hEngine.Register(&heuristics.NATGatewayHeuristic{CW: cwClient})
+				hEngine.Register(&heuristics.RDSHeuristic{CW: cwClient})
+				hEngine.Register(&heuristics.ELBHeuristic{CW: cwClient})
+				if pricingClient != nil {
+					hEngine.Register(&heuristics.UnderutilizedInstanceHeuristic{CW: cwClient, Pricing: pricingClient})
+				}
+			}
+
+			if pricingClient != nil {
+				hEngine.Register(&heuristics.ZombieEBSHeuristic{Pricing: pricingClient})
+			} else {
+				hEngine.Register(&heuristics.ZombieEBSHeuristic{})
+			}
+
+			if *requiredTags != "" {
+				hEngine.Register(&heuristics.TagComplianceHeuristic{RequiredTags: strings.Split(*requiredTags, ",")})
+			}
+
+			if iamClient != nil {
+				hEngine.Register(&heuristics.IAMHeuristic{IAM: iamClient})
+			}
+
+			// Execute Forensics
+			if err := hEngine.Run(ctx, g); err != nil {
+				fmt.Printf("Deep Analysis failed: %v\n", err)
+			}
+
+			// Generate Output
+			if !isTrial {
+				os.Mkdir("cloudslash-out", 0755)
+				gen := tf.NewGenerator(g)
+				gen.GenerateWasteTF("cloudslash-out/waste.tf")
+				gen.GenerateImportScript("cloudslash-out/import.sh")
+				gen.GenerateDestroyPlan("cloudslash-out/destroy_plan.out")
+
+				remGen := remediation.NewGenerator(g)
+				remGen.GenerateSafeDeleteScript("cloudslash-out/safe_cleanup.sh")
+				os.Chmod("cloudslash-out/safe_cleanup.sh", 0755)
+
+				if err := report.GenerateHTML(g, "cloudslash-out/dashboard.html"); err != nil {
+					fmt.Printf("Failed to generate dashboard: %v\n", err)
+				}
+
+				if *slackWebhook != "" {
+					if err := notifier.SendSlackReport(*slackWebhook, g); err != nil {
+						fmt.Printf("Failed to send Slack report: %v\n", err)
+					}
+				}
+			}
+		}()
 	}
 
 	// 3. Start TUI
 	model := ui.NewModel(engine, g, isTrial)
 	p := tea.NewProgram(model)
 
-	// 4. Run Logic in Background
-	go func() {
-		if *mockMode {
-			return // No background tasks in Mock Mode
-		}
-
-		// Wait for scans to complete (simplified wait)
-		time.Sleep(5 * time.Second) // In real app, use WaitGroup or better signaling
-
-		// Shadow State Reconciliation
-		if _, err := os.Stat(*tfStatePath); err == nil {
-			state, err := tf.ParseStateFile(*tfStatePath)
-			if err == nil {
-				detector := tf.NewDriftDetector(g, state)
-				detector.ScanForDrift()
-			}
-		}
-
-		// Run Heuristics
-		// In Mock Mode, we can just run them or skip if they depend on CW
-		// For now, let's skip CW-dependent heuristics in Mock Mode or mock CW too.
-		// To keep it simple, we'll just let the heuristics run.
-		// If they fail (nil CW client), we should handle it.
-		// But wait, we didn't init CW client in Mock Mode.
-		// Let's just manually mark waste in MockScanner for now to simulate findings.
-
-		// Run Heuristics
-		if !*mockMode {
-			natHeuristic := &heuristics.NATGatewayHeuristic{CW: cwClient}
-			natHeuristic.Analyze(ctx, g)
-
-			zombieHeuristic := &heuristics.ZombieEBSHeuristic{}
-			zombieHeuristic.Analyze(ctx, g)
-
-			eipHeuristic := &heuristics.ElasticIPHeuristic{}
-			eipHeuristic.Analyze(ctx, g)
-
-			s3Heuristic := &heuristics.S3MultipartHeuristic{}
-			s3Heuristic.Analyze(ctx, g)
-
-			rdsHeuristic := &heuristics.RDSHeuristic{CW: cwClient}
-			rdsHeuristic.Analyze(ctx, g)
-
-			elbHeuristic := &heuristics.ELBHeuristic{CW: cwClient}
-			elbHeuristic.Analyze(ctx, g)
-		}
-
-		// Generate Output (Only if not in trial mode)
-		if !isTrial {
-			os.Mkdir("cloudslash-out", 0755)
-			gen := tf.NewGenerator(g)
-			gen.GenerateWasteTF("cloudslash-out/waste.tf")
-			gen.GenerateImportScript("cloudslash-out/import.sh")
-			gen.GenerateDestroyPlan("cloudslash-out/destroy_plan.out")
-		} else {
-			// In trial mode, we do NOT generate output.
-			// This forces the user to buy a license to get the fix.
-		}
-
-		// Signal completion to TUI?
-		// For now, just let user quit with 'q'
-	}()
-
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
+}
+
+func runScanForProfile(ctx context.Context, region, profile string, g *graph.Graph, engine *swarm.Engine, scanWg *sync.WaitGroup) (*aws.Client, error) {
+	awsClient, err := aws.NewClient(ctx, region, profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AWS client: %v", err)
+	}
+
+	// Verify Identity
+	identity, err := awsClient.VerifyIdentity(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify identity: %v", err)
+	}
+	fmt.Printf(" [Profile: %s] Connected to AWS Account: %s\n", profile, identity)
+
+	// Scanners
+	ec2Scanner := aws.NewEC2Scanner(awsClient.Config, g)
+	s3Scanner := aws.NewS3Scanner(awsClient.Config, g)
+	rdsScanner := aws.NewRDSScanner(awsClient.Config, g)
+	elbScanner := aws.NewELBScanner(awsClient.Config, g)
+
+	submitTask := func(task func(ctx context.Context) error) {
+		scanWg.Add(1)
+		engine.Submit(func(ctx context.Context) error {
+			defer scanWg.Done()
+			return task(ctx)
+		})
+	}
+
+	submitTask(func(ctx context.Context) error { return ec2Scanner.ScanInstances(ctx) })
+	submitTask(func(ctx context.Context) error { return ec2Scanner.ScanVolumes(ctx) })
+	submitTask(func(ctx context.Context) error { return ec2Scanner.ScanNatGateways(ctx) })
+	submitTask(func(ctx context.Context) error { return ec2Scanner.ScanAddresses(ctx) })
+	submitTask(func(ctx context.Context) error { return s3Scanner.ScanBuckets(ctx) })
+	submitTask(func(ctx context.Context) error { return rdsScanner.ScanInstances(ctx) })
+	submitTask(func(ctx context.Context) error { return elbScanner.ScanLoadBalancers(ctx) })
+
+	return awsClient, nil
 }

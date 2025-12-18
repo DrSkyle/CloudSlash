@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/saujanyayaya/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/graph"
 )
 
 type MockScanner struct {
@@ -44,12 +44,23 @@ func (s *MockScanner) Scan(ctx context.Context) error {
 	s.Graph.MarkWaste("arn:aws:ec2:us-east-1:123456789012:natgateway/nat-0mock12345", 80)
 	if node, ok := s.Graph.Nodes["arn:aws:ec2:us-east-1:123456789012:natgateway/nat-0mock12345"]; ok {
 		node.Properties["Reason"] = "Unused NAT Gateway (Mocked)"
+		node.Cost = 32.40 // Approx $0.045/hr * 720
 	}
 
 	// 5. Stale S3 Multipart Upload
 	s.Graph.AddNode("arn:aws:s3:::mock-bucket/upload-1", "AWS::S3::MultipartUpload", map[string]interface{}{
 		"Initiated": time.Now().Add(-10 * 24 * time.Hour), // 10 days old
 	})
+	// Heuristic runs later and marks waste, but we need to ensure it has cost if we want charts now?
+	// The heuristics run in mock mode too (see main.go).
+	// However, heuristics calculate cost using Pricing Client which mocks don't hold.
+	// So we should manually simulate cost detection or update heuristics to check if Cost is already set?
+	// Heuristics overwrite cost usually.
+	// But in Mock Mode (main.go), we call heuristics:
+	// zombieHeuristic.Analyze(ctx, g) -> calls Pricing if set. Pricing is nil in Mock Mode.
+	// So heuristics won't set cost. We must pre-set it here and ensuring heuristics don't overwrite with 0 if Pricing is nil.
+
+	// Let's set costs here on the graph nodes directly.
 
 	return nil
 }

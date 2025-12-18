@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/saujanyayaya/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/graph"
 )
 
 func TestZombieEBSHeuristic(t *testing.T) {
@@ -14,7 +14,6 @@ func TestZombieEBSHeuristic(t *testing.T) {
 
 	// 1. Setup Graph with a Zombie Volume
 	// Instance stopped 40 days ago
-	// Note: Heuristic constructs ARN as "arn:aws:ec2:region:account:instance/%s"
 	g.AddNode("arn:aws:ec2:region:account:instance/i-stopped", "AWS::EC2::Instance", map[string]interface{}{
 		"State":      "stopped",
 		"LaunchTime": time.Now().Add(-40 * 24 * time.Hour),
@@ -39,7 +38,9 @@ func TestZombieEBSHeuristic(t *testing.T) {
 
 	// 3. Run Heuristic
 	h := &ZombieEBSHeuristic{}
-	h.Analyze(ctx, g)
+	if err := h.Run(ctx, g); err != nil {
+		t.Fatalf("Heuristic run failed: %v", err)
+	}
 
 	// 4. Assertions
 	g.Mu.RLock()
@@ -83,7 +84,9 @@ func TestS3MultipartHeuristic(t *testing.T) {
 
 	// 3. Run Heuristic
 	h := &S3MultipartHeuristic{}
-	h.Analyze(ctx, g)
+	if err := h.Run(ctx, g); err != nil {
+		t.Fatalf("Heuristic run failed: %v", err)
+	}
 
 	// 4. Assertions
 	g.Mu.RLock()

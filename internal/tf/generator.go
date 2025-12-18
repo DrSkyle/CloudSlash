@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/saujanyayaya/cloudslash/internal/graph"
+	"github.com/DrSkyle/cloudslash/internal/graph"
 )
 
 type Generator struct {
