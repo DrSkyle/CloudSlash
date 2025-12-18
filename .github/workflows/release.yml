@@ -17,6 +17,9 @@ jobs:
           - goos: linux
             goarch: amd64
             output_name: cloudslash-linux-amd64
+          - goos: linux
+            goarch: arm64
+            output_name: cloudslash-linux-arm64
           - goos: darwin
             goarch: amd64
             output_name: cloudslash-darwin-amd64
