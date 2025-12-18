@@ -2,12 +2,11 @@
 set -e
 
 # CloudSlash "One-Liner" Installer
-# Fetches binaries directly from the GitHub Repository (main branch).
+# Fetches binaries from GitHub Releases (latest).
 
 REPO_USER="DrSkyle"
 REPO_NAME="CloudSlash"
-BRANCH="main"
-BASE_URL="https://raw.githubusercontent.com/$REPO_USER/$REPO_NAME/$BRANCH/dist"
+BASE_URL="https://github.com/$REPO_USER/$REPO_NAME/releases/latest/download"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
