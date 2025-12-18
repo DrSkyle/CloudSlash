@@ -140,31 +140,22 @@
                         </ul>
                         <a href="#download" class="btn-secondary-full">Download</a>
                     </div>
-                    
-                    <div class="price-card glass-panel featured-blue">
-                        <div class="badge-blue">Indie</div>
-                        <h3>Starter</h3>
-                        <div class="price">$49<span>/yr</span></div>
-                        <ul class="features-list">
-                            <li>✅ <strong>Single User</strong></li>
-                            <li>✅ Full Reporting</li>
-                            <li>✅ Terraform Scripts</li>
-                            <li>❌ Priority Support</li>
-                        </ul>
-                        <button onclick="buyPlan(PLANS.STARTER)" class="btn-primary-full">Buy License</button>
-                    </div>
 
                     <div class="price-card glass-panel featured">
-                        <div class="badge">Agencies</div>
+                        <div class="badge">Recommended</div>
                         <h3>Pro License</h3>
-                        <div class="price">$499<span>/yr</span></div>
+                        <div class="price">$49<span>/mo</span></div>
+                        <p style="color: #aaa; margin-bottom: 20px; font-size: 0.9rem;">or $499/year (Save 15%)</p>
                         <ul class="features-list">
-                            <li>✅ <strong>5 Team Seats</strong></li>
+                            <li>✅ <strong>Commercial Use</strong></li>
                             <li>✅ Full Reporting</li>
                             <li>✅ Terraform Scripts</li>
                             <li>✅ Priority Support</li>
                         </ul>
-                        <a href="https://checkout.freemius.com/app/22411/plan/37513/?billing_cycle=annual" target="_blank" class="btn-primary-full">Buy License</a>
+                        <div class="button-group" style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button onclick="buyPlan(PLANS.MONTHLY)" class="btn-secondary-full" style="margin-top: 0; font-size: 0.9rem;">Monthly</button>
+                            <button onclick="buyPlan(PLANS.ANNUAL)" class="btn-primary-full" style="margin-top: 0; font-size: 0.9rem;">Annual</button>
+                        </div>
                     </div>
                     
                     <div class="price-card glass-panel">
@@ -275,7 +266,7 @@
 
         // Simulating IDs - Replace these with real ones from Dashboard!
         const PLANS = {
-            STARTER: 37513, // $49/yr
+            MONTHLY: 37513, // $49/mo
             ANNUAL:  37513, // $499/yr
             LIFETIME: 37513 // $1499
         };
