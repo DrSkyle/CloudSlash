@@ -65,11 +65,7 @@ func fetchLatestVersion() (string, error) {
 }
 
 func doUpdate() error {
-    // 1. Determine download URL based on OS
-    osName := "linux"
-    if runtime.GOOS == "darwin" { osName = "macos" }
-    // (Assuming linux binary for now as per install.sh structure, or we need to respect the install.sh logic)
-    // The install.sh detects OS.
+    // 1. Determine download URL based on OS specific command
     // The simplest "Auto-Update" is actually just re-running the install script!
     
     cmd := exec.Command("sh", "-c", "curl -sL https://raw.githubusercontent.com/DrSkyle/CloudSlash/main/dist/install.sh | bash")

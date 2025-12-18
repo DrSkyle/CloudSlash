@@ -234,6 +234,10 @@ func runScanForProfile(ctx context.Context, region, profile string, g *graph.Gra
 	// Verify Identity
 	identity, err := awsClient.VerifyIdentity(ctx)
 	if err != nil {
+        // Helpful error for "No Credentials"
+        if strings.Contains(err.Error(), "no EC2 IMDS role found") || strings.Contains(err.Error(), "failed to get caller identity") {
+             return nil, fmt.Errorf("\n❌ Unable to find AWS Credentials.\n   Please run 'aws configure' or set AWS_PROFILE.\n   (Error: %v)", err)
+        }
 		return nil, fmt.Errorf("failed to verify identity: %v", err)
 	}
 	fmt.Printf(" [Profile: %s] Connected to AWS Account: %s\n", profile, identity)

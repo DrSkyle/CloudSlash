@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"os"
+    "strings"
 
     "github.com/DrSkyle/cloudslash/internal/app"
 	"github.com/spf13/cobra"
@@ -49,7 +50,7 @@ func init() {
 
     // Hidden Flags
     rootCmd.PersistentFlags().BoolVar(&config.MockMode, "mock", false, "Run in Mock Mode")
-    rootCmd.PersistentFlags().MarkHidden("mock") // HIDE MOCK FLAG <-- REQUESTED FIX
+    rootCmd.PersistentFlags().MarkHidden("mock")
 
     // Custom Help
     rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
@@ -58,20 +59,18 @@ func init() {
     
     // Auto-Update Check
     rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-               // Colored output using ANSI codes directly or lipgloss?
-               // Use direct ANSI for speed/simplicity in background goroutine print
-               // Actually printing inside a running TUI (BubbleTea) will break the UI.
-               // We should only print if NOT running TUI, OR pass it to TUI.
-               
-               // For now, let's only print if it's the HELP command or SCAN command (no TUI active yet)
-               // Or just print to stderr? 
-               // Safe option: Only print if config.Headless is true OR we can intercept separate thread.
-               
-               // Better: Just set a flag and let the TUI show a banner? 
-               // For this request, user asked "checks if its updates".
-           }
-        }()
+        // Only verify on help or scan to avoid racing with TUI
+        if cmd.Name() == "help" || cmd.Name() == "scan" || cmd.Name() == "update" {
+             checkUpdate()
+        }
     }
+}
+
+func checkUpdate() {
+   latest, err := fetchLatestVersion()
+   if err == nil && strings.TrimSpace(latest) != CurrentVersion {
+       fmt.Printf("\n✨ Update Available: %s -> %s\nRun 'cloudslash update' to upgrade.\n\n", CurrentVersion, latest)
+   }
 }
 
 func initConfig() {
