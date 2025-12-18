@@ -177,6 +177,28 @@ nav a:hover {
   box-shadow: 0 0 20px rgba(0, 255, 153, 0.4);
 }
 
+.price-card .btn-secondary-full:hover,
+.price-card .btn-primary-full:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 255, 153, 0.2);
+}
+
+.features-list {
+    list-style: none;
+    padding: 0;
+    margin: 20px 0;
+    text-align: left;
+    font-size: 0.9rem;
+    color: #ccc;
+}
+
+.features-list li {
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .btn-primary-sm {
   padding: 8px 16px;
   font-size: 0.9rem;
