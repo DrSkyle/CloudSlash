@@ -46,10 +46,6 @@ You may not modify the source code to bypass or remove license checks for the pu
    go run ./cmd/cloudslash
    ```
 
-## Support
-
-If this tool saved you time or money, you can support development via the [Support Section](https://cloudslash.pages.dev/#support) on our website.
-
 3. **Mock Mode** (Run without AWS credentials):
    ```bash
    go run ./cmd/cloudslash --mock
