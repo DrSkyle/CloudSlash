@@ -22,15 +22,21 @@ CloudSlash identifies idle, orphaned, and underutilized resources in your AWS en
 
 ### macOS / Linux
 
+**Option 1: Automated Install (from Release Zip)**
+
 ```bash
-curl -L https://cloudslash.pages.dev/install.sh | bash
+cd dist
+chmod +x install.sh
+./install.sh
 ```
 
-### Windows (PowerShell)
+**Option 2: Manual Install**
+Move the binary for your platform (e.g., `cloudslash-linux-amd64`) to `/usr/local/bin/cloudslash` and make it executable.
 
-```powershell
-iwr https://cloudslash.pages.dev/install.ps1 -useb | iex
-```
+### Windows
+
+**Manual Install**
+Download `cloudslash-windows-amd64.exe` from the `dist` folder. You can run it directly from PowerShell or add it to your PATH.
 
 ## Usage
 
@@ -53,6 +59,20 @@ Unlocks Resource IDs and Terraform generation.
 
 - **IAM Scope:** Requires only `ReadOnlyAccess`.
 - **Data Privacy:** Analysis is performed locally (Edge Compute). No credential or graph data leaves your machine.
+
+## Uninstallation
+
+To remove CloudSlash completely:
+
+**macOS / Linux:**
+
+```bash
+./dist/uninstall.sh
+# Or manually: sudo rm /usr/local/bin/cloudslash
+```
+
+**Windows:**
+Simply delete the `.exe` file.
 
 ## Architecture
 

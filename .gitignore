@@ -5,7 +5,6 @@ keygen
 keygen.exe
 
 # Build Artifacts
-dist/
 builds/
 cloudslash-out/
 

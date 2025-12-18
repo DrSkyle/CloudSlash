@@ -139,7 +139,7 @@
                     </div>
                     <div class="code-block" onclick="copyInstall()">
                         <span class="prompt">$</span>
-                        <code id="install-cmd">curl -sL https://cloudslash.pages.dev/install.sh | bash</code>
+                        <code id="install-cmd">curl -sL https://raw.githubusercontent.com/DrSkyle/CloudSlash/main/dist/install.sh | bash</code>
                         <span class="copy-icon">📋</span>
                     </div>
                 </div>
@@ -158,10 +158,10 @@
                         tabs.forEach(t => t.classList.remove('active'));
                         
                         if (os === 'unix') {
-                            cmd.innerText = 'curl -sL https://cloudslash.pages.dev/install.sh | bash';
+                            cmd.innerText = 'curl -sL https://raw.githubusercontent.com/DrSkyle/CloudSlash/main/dist/install.sh | bash';
                             tabs[0].classList.add('active');
                         } else {
-                            cmd.innerText = 'iwr https://cloudslash.pages.dev/install.ps1 -useb | iex';
+                            cmd.innerText = 'irm https://raw.githubusercontent.com/DrSkyle/CloudSlash/main/dist/install.ps1 | iex';
                             tabs[1].classList.add('active');
                         }
                     }
