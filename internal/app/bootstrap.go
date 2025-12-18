@@ -66,7 +66,7 @@ func Run(cfg Config) {
 
     // 3. Start Interface (TUI vs Headless)
     if !cfg.Headless {
-        model := ui.NewModel(engine, g, isTrial)
+        model := ui.NewModel(engine, g, isTrial, cfg.MockMode)
         p := tea.NewProgram(model)
         if _, err := p.Run(); err != nil {
             fmt.Printf("Alas, there's been an error: %v", err)

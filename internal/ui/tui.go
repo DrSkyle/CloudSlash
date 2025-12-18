@@ -60,14 +60,14 @@ type Model struct {
 }
 
 // NewModel initializes the TUI model.
-func NewModel(e *swarm.Engine, g *graph.Graph, isTrial bool) Model {
+func NewModel(e *swarm.Engine, g *graph.Graph, isTrial bool, isMock bool) Model {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(highlight)
 	
 	return Model{
 		spinner:     s,
-		scanning:    true,
+		scanning:    !isMock, // If mock, scan is already done in bootstrap
 		isTrial:     isTrial,
 		Engine:      e,
 		Graph:       g,
