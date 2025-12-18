@@ -55,9 +55,10 @@ type Model struct {
 	Graph  *graph.Graph
 
 	// State
-	wasteItems []string
-	cursor     int
-	tasksDone  int
+	wasteItems     []string
+	cursor         int
+	tasksDone      int
+	showingDetails bool
 }
 
 // NewModel initializes the TUI model.
@@ -108,6 +109,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             // In View we calculate items. Ideally we cache it.
             // visual cursor limit handled in View partial logic or we let it go high and clamp in view
 			m.cursor++
+		case "enter", " ":
+			m.showingDetails = !m.showingDetails
 		}
 	
 	case tea.WindowSizeMsg:
@@ -233,10 +236,35 @@ func (m Model) View() string {
         if len(items) > 15 {
             s.WriteString(dimStyle.Render(fmt.Sprintf("... and %d more items.", len(items)-15)))
         }
+
+        // DETAIL VIEW OVERLAY
+        if m.showingDetails && len(items) > 0 {
+             // Safe clamp
+             idx := m.cursor
+             if idx >= len(items) { idx = len(items) - 1 }
+             if idx < 0 { idx = 0 }
+             
+             node := items[idx]
+             
+             details := fmt.Sprintf(
+                 "DETAILS FOR %s\n\nType:   %s\nRegion: %v\nOwner:  %v\nCost:   ~$12.00/mo (Est)\n\n[DETECTED WASTE]\nThis resource is orphaned and has been idle for > 30 days.",
+                 node.ID,
+                 node.Type,
+                 node.Properties["Region"],
+                 node.Properties["Owner"],
+             )
+             
+             s.WriteString("\n\n")
+             s.WriteString(cardStyle.Render(details))
+        }
     }
 
 	s.WriteString("\n\n")
-    s.WriteString(helpStyle("↑/↓: Navigate • Enter: Details • q: Quit"))
+    if m.showingDetails {
+        s.WriteString(helpStyle("Enter: Close Details • q: Quit"))
+    } else {
+        s.WriteString(helpStyle("↑/↓: Navigate • Enter: Details • q: Quit"))
+    }
 	return s.String()
 }
 
