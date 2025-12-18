@@ -97,7 +97,7 @@ func renderFutureGlassHelp(cmd *cobra.Command) {
     flagStyle := lipgloss.NewStyle().
         Foreground(lipgloss.Color("#AAAAAA"))
 
-    fmt.Println(titleStyle.Render("CLOUDSLASH v1.0 [Future-Glass]"))
+    fmt.Println(titleStyle.Render(fmt.Sprintf("CLOUDSLASH %s [Future-Glass]", CurrentVersion)))
     fmt.Println("The Forensic Cloud Accountant for AWS.\n")
     
     fmt.Println(titleStyle.Render("USAGE"))

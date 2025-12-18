@@ -8,7 +8,7 @@ CloudSlash identifies idle, orphaned, and underutilized resources in your AWS en
 
 ![License](https://img.shields.io/badge/license-Commercial-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Mac%20%7C%20Linux%20%7C%20Windows-lightgrey)
-![Version](https://img.shields.io/badge/version-v1.0.2-brightgreen)
+![Version](https://img.shields.io/badge/version-v1.0.3-brightgreen)
 
 ## Core Capabilities
 
