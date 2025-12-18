@@ -250,25 +250,30 @@
         };
 
         // Initialize Freemius Checkout
-        var fsHandler = FS.Checkout.configure({
+        // Ensure handler is global to be accessed by buyPlan
+        window.fsHandler = FS.Checkout.configure({
             plugin_id: '22411',
             public_key: 'pk_fe7225bdb16e44cd1d9495f1be97c',
-            image: 'https://cloudslash.pages.dev/assets/logo.png', // Will need to upload logo
+            image: 'https://cloudslash.pages.dev/assets/logo.png',
         });
 
         function buyPlan(planId, pricingId) {
             // TIP: You can find Plan IDs in Freemius Dashboard -> Plans
             // If ID is unknown, the checkout will default to the first paid plan.
             let config = {
-                plan_id: planId,
-                licenses: 1,
-                // Ensure we use the correct plan if relevant
+                plan_id: planId.toString(),
+                licenses: 1
             };
             
             // If we have a specific billing cycle/pricing ID (optional)
             if (pricingId) config.pricing_id = pricingId;
 
-            fsHandler.open(config);
+            if (window.fsHandler) {
+                window.fsHandler.open(config);
+            } else {
+                console.error("Freemius handler not initialized.");
+                alert("Payment system is initializing. Please try again in moment.");
+            }
         }
 
         // Wire up buttons - OLD SELECTORS MIGHT BREAK WITH NEW BUTTON TAGS
