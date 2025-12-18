@@ -92,6 +92,21 @@
                         <h3>S3 Ghosts</h3>
                         <p>Incomplete Multipart Uploads usually invisible in the console. We surface the invisible Terabytes.</p>
                     </div>
+                    <div class="card glass-panel">
+                        <div class="icon">🦕</div>
+                        <h3>Fossil Snapshots</h3>
+                        <p>Manual RDS snapshots older than 90 days that are no longer linked to any active database cluster.</p>
+                    </div>
+                    <div class="card glass-panel">
+                        <div class="icon">🕸️</div>
+                        <h3>Orphaned ELBs</h3>
+                        <p>Load Balancers with no registered targets or zero request count for >14 days. Pure waste.</p>
+                    </div>
+                    <div class="card glass-panel">
+                        <div class="icon">🎈</div>
+                        <h3>Loose EIPs</h3>
+                        <p>Elastic IPs allocated but not associated with any running instance. Identifying these clears instant monthly drift.</p>
+                    </div>
                 </div>
             </div>
         </section>

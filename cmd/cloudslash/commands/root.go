@@ -1,0 +1,104 @@
+package commands
+
+import (
+	"fmt"
+	"os"
+
+    "github.com/DrSkyle/cloudslash/internal/app"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+    "github.com/charmbracelet/lipgloss"
+    "github.com/spf13/pflag"
+)
+
+var (
+	cfgFile string
+	config  app.Config
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "cloudslash",
+	Short: "The Forensic Cloud Accountant",
+	Long: `CloudSlash - Zero Trust Infrastructure Analysis
+    
+Identify. Audit. Slash.`,
+	Run: func(cmd *cobra.Command, args []string) {
+        // Default action: Run TUI
+        config.Headless = false
+		app.Run(config)
+	},
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+
+	// Persistent Flags
+	rootCmd.PersistentFlags().StringVar(&config.LicenseKey, "license", "", "License Key")
+	rootCmd.PersistentFlags().StringVar(&config.Region, "region", "us-east-1", "AWS Region")
+	rootCmd.PersistentFlags().StringVar(&config.TFStatePath, "tfstate", "terraform.tfstate", "Path to web.tfstate")
+	rootCmd.PersistentFlags().BoolVar(&config.AllProfiles, "all-profiles", false, "Scan all AWS profiles")
+    rootCmd.PersistentFlags().StringVar(&config.RequiredTags, "required-tags", "", "Required tags (comma-separated)")
+    rootCmd.PersistentFlags().StringVar(&config.SlackWebhook, "slack-webhook", "", "Slack Webhook URL")
+
+    // Hidden Flags
+    rootCmd.PersistentFlags().BoolVar(&config.MockMode, "mock", false, "Run in Mock Mode")
+    rootCmd.PersistentFlags().MarkHidden("mock") // HIDE MOCK FLAG <-- REQUESTED FIX
+
+    // Custom Help
+    rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+        renderFutureGlassHelp(cmd)
+    })
+}
+
+func initConfig() {
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+	} else {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			viper.AddConfigPath(home)
+            viper.SetConfigName(".cloudslash")
+		}
+	}
+	viper.AutomaticEnv()
+    viper.ReadInConfig()
+}
+
+func renderFutureGlassHelp(cmd *cobra.Command) {
+    // Bubble Tea / Lipgloss Styling for Help
+    titleStyle := lipgloss.NewStyle().
+        Bold(true).
+        Foreground(lipgloss.Color("#00FF99")).
+        MarginBottom(1)
+    
+    flagStyle := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("#AAAAAA"))
+
+    fmt.Println(titleStyle.Render("CLOUDSLASH v1.0 [Future-Glass]"))
+    fmt.Println("The Forensic Cloud Accountant for AWS.\n")
+    
+    fmt.Println(titleStyle.Render("USAGE"))
+    fmt.Printf("  %s [flags]\n\n", cmd.UseLine())
+
+    fmt.Println(titleStyle.Render("COMMANDS"))
+    fmt.Println("  scan        Run headless scan (CI/CD mode)")
+    fmt.Println("  help        Help about any command\n")
+    
+    fmt.Println(titleStyle.Render("FLAGS"))
+    cmd.Flags().VisitAll(func(f *pflag.Flag) {
+        if f.Hidden { return } // Don't show mock
+        output := fmt.Sprintf("  --%-15s %s", f.Name, f.Usage)
+        if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" {
+            output += fmt.Sprintf(" (default %s)", f.DefValue)
+        }
+        fmt.Println(flagStyle.Render(output))
+    })
+    fmt.Println("")
+}
