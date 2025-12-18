@@ -421,6 +421,9 @@ nav a:hover {
     cursor: pointer;
     border: 1px solid transparent;
     transition: border 0.3s;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
 }
 
 .code-block:hover {
