@@ -44,3 +44,10 @@ report.pdf
 cloudslash_local
 go/
 *.tar.gz
+
+# Private Marketing Assets
+cold_email_template.txt
+guerrilla_tactics.md
+lead_gen_prompt.md
+outreach_directories.md
+twitter_replies.md
