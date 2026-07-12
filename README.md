@@ -712,6 +712,6 @@ rm -rf cloudslash-out/ .cloudslash/
 
 CloudSlash v2.0 was developed with a philosophy of "Zero Waste." We acknowledge the open-source community for the robust libraries that make this engine possible.
 
-CloudSlash is a community-supported project by Devi & Muna.
+CloudSlash is a community-supported project by Devi Labs.
 
 **Copyright © 2026 DrSkyle.**
